@@ -16,6 +16,8 @@ export default defineConfig(({ command }) => ({
   build: {
     outDir: "../dist",
     emptyOutDir: true,
+    // 桌面端从本地加载，大 chunk 不走网络；避免 manualChunks 拆包导致生产白屏
+    chunkSizeWarningLimit: 5000,
   },
   server: {
     port: 3000,
@@ -29,4 +31,3 @@ export default defineConfig(({ command }) => ({
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_"],
 }));
-

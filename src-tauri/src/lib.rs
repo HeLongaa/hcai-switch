@@ -137,9 +137,22 @@ fn handle_deeplink_url(
         return false;
     }
 
+    // OAuth 回调的 fragment 含 access/refresh token，必须在任何原始 URL 日志和
+    // 通用配置导入解析之前截获。
+    if crate::handle_hcai_oauth_callback(app, url_str) {
+        log::info!("✓ HCAI OAuth callback received from {source}");
+        if focus_main_window {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+        return true;
+    }
+
     let redacted_url = redact_url_for_log(url_str);
     log::info!("✓ Deep link URL detected from {source}: {redacted_url}");
-    log::debug!("Deep link URL (raw) from {source}: {url_str}");
 
     match crate::deeplink::parse_deeplink_url(url_str) {
         Ok(request) => {
@@ -895,6 +908,21 @@ pub fn run() {
                     }
                 }
             });
+
+            // Windows/Linux 冷启动时 deep-link 插件会把命令行 URL 放在 current，
+            // 事件早于这里注册监听器，必须主动取一次；macOS 由 RunEvent::Opened 处理。
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                for url in urls {
+                    if handle_deeplink_url(
+                        app.handle(),
+                        url.as_str(),
+                        false,
+                        "startup deep link",
+                    ) {
+                        break;
+                    }
+                }
+            }
             log::info!("✓ Deep-link URL handler registered");
 
             // 创建动态托盘菜单
@@ -1287,8 +1315,19 @@ pub fn run() {
             commands::apply_profile,
             // model list fetch (OpenAI-compatible /v1/models)
             commands::fetch_models_for_config,
-            // HCAI usage
+            // HCAI usage / public settings / auth
             commands::fetch_hcai_usage,
+            commands::fetch_hcai_public_settings,
+            commands::hcai_login,
+            commands::hcai_oauth_github_start,
+            commands::hcai_oauth_google_start,
+            commands::hcai_oauth_take_result,
+            commands::hcai_oauth_cancel,
+            commands::hcai_oauth_github_webview_login,
+            commands::hcai_api_get,
+            commands::hcai_api_post,
+            commands::hcai_api_put,
+            commands::hcai_api_delete,
             // ours: endpoint speed test + custom endpoint management
             commands::test_api_endpoints,
             commands::get_custom_endpoints,
@@ -1603,59 +1642,12 @@ pub fn run() {
                 RunEvent::Opened { urls } => {
                     if let Some(url) = urls.first() {
                         let url_str = url.to_string();
-                        log::info!("RunEvent::Opened with URL: {url_str}");
-
-                        if url_str.starts_with("ccswitch://") {
-                            if crate::lightweight::is_lightweight_mode() {
-                                if let Err(e) = crate::lightweight::exit_lightweight_mode(app_handle)
-                                {
-                                    log::error!("退出轻量模式重建窗口失败: {e}");
-                                }
-                            }
-
-                            // 解析并广播深链接事件，复用与 single_instance 相同的逻辑
-                            match crate::deeplink::parse_deeplink_url(&url_str) {
-                                Ok(request) => {
-                                    log::info!(
-                                        "Successfully parsed deep link from RunEvent::Opened: resource={}, app={:?}",
-                                        request.resource,
-                                        request.app
-                                    );
-
-                                    if let Err(e) =
-                                        app_handle.emit("deeplink-import", &request)
-                                    {
-                                        log::error!(
-                                            "Failed to emit deep link event from RunEvent::Opened: {e}"
-                                        );
-                                    }
-                                }
-                                Err(e) => {
-                                    log::error!(
-                                        "Failed to parse deep link URL from RunEvent::Opened: {e}"
-                                    );
-
-                                    if let Err(emit_err) = app_handle.emit(
-                                        "deeplink-error",
-                                        serde_json::json!({
-                                            "url": url_str,
-                                            "error": e.to_string()
-                                        }),
-                                    ) {
-                                        log::error!(
-                                            "Failed to emit deep link error event from RunEvent::Opened: {emit_err}"
-                                        );
-                                    }
-                                }
-                            }
-
-                            // 确保主窗口可见
-                            if let Some(window) = app_handle.get_webview_window("main") {
-                                let _ = window.unminimize();
-                                let _ = window.show();
-                                let _ = window.set_focus();
+                        if crate::lightweight::is_lightweight_mode() {
+                            if let Err(e) = crate::lightweight::exit_lightweight_mode(app_handle) {
+                                log::error!("退出轻量模式重建窗口失败: {e}");
                             }
                         }
+                        let _ = handle_deeplink_url(app_handle, &url_str, true, "RunEvent::Opened");
                     }
                 }
                 _ => {}
