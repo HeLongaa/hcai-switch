@@ -1,10 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { fetchModelsForConfig } from "@/lib/api/model-fetch";
 import type { FetchedModel } from "@/lib/api/model-fetch";
-import {
-  HCAI_ENDPOINT_ROOTS,
-  type HcaiUsageResponse,
-} from "./types";
+import { HCAI_ENDPOINT_ROOTS, type HcaiUsageResponse } from "./types";
 
 function todayInShanghai(): string {
   // en-CA → YYYY-MM-DD

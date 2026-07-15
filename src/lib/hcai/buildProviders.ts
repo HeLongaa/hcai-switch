@@ -4,9 +4,7 @@ import {
   generateThirdPartyAuth,
   generateThirdPartyConfig,
 } from "@/config/codexProviderPresets";
-import {
-  CLAUDE_DESKTOP_ROLE_ROUTE_IDS,
-} from "@/config/claudeDesktopProviderPresets";
+import { CLAUDE_DESKTOP_ROLE_ROUTE_IDS } from "@/config/claudeDesktopProviderPresets";
 import { generateUUID } from "@/utils/uuid";
 import {
   byokGrokConfigToml,
@@ -140,9 +138,7 @@ export function buildHcaiProviders(
     const opus =
       sel.claudeOpus || pickModelByHint(allClaudeModels, ["opus"]) || primary;
     const haiku =
-      sel.claudeHaiku ||
-      pickModelByHint(allClaudeModels, ["haiku"]) ||
-      primary;
+      sel.claudeHaiku || pickModelByHint(allClaudeModels, ["haiku"]) || primary;
     // 面板传入 "" 表示「不配置」；未传字段时才回退到列表里的 fable
     const fable =
       sel.claudeFable !== undefined
@@ -415,4 +411,9 @@ export function buildHcaiProviders(
 export type { HcaiLinkedApp };
 
 // Re-export for callers that need the default lists
-export { HCAI_BASE_URL, HCAI_BASE_URL_V1, HCAI_ENDPOINT_ROOTS, HCAI_ENDPOINT_V1S };
+export {
+  HCAI_BASE_URL,
+  HCAI_BASE_URL_V1,
+  HCAI_ENDPOINT_ROOTS,
+  HCAI_ENDPOINT_V1S,
+};

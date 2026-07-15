@@ -26,10 +26,7 @@ export type HcaiEndpointRoot = (typeof HCAI_ENDPOINT_ROOTS)[number];
 
 /** 去掉末尾斜杠与可选 `/v1`，得到网关根 */
 export function toHcaiGatewayRoot(url: string): string {
-  return url
-    .trim()
-    .replace(/\/+$/, "")
-    .replace(/\/v1$/i, "");
+  return url.trim().replace(/\/+$/, "").replace(/\/v1$/i, "");
 }
 
 /** 是否为 HCAI 网关主机（含区域节点） */

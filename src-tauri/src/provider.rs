@@ -185,7 +185,10 @@ impl Provider {
             // Grok: BYOK stores apiKey on settings; base from first model base_url if any
             AppType::Grok => {
                 let api_key = str_at(settings.get("apiKey"));
-                let config_text = settings.get("config").and_then(|v| v.as_str()).unwrap_or("");
+                let config_text = settings
+                    .get("config")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 // Best-effort base: first base_url = "..." in config.toml
                 let base_url = config_text
                     .lines()

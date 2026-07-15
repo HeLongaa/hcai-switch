@@ -575,9 +575,7 @@ function ProviderFormFull({
   });
   const [isGrokEndpointModalOpen, setIsGrokEndpointModalOpen] = useState(false);
   const [grokBaseUrl, setGrokBaseUrlState] = useState(() => {
-    const cfg = initialData?.settingsConfig as
-      | { config?: string }
-      | undefined;
+    const cfg = initialData?.settingsConfig as { config?: string } | undefined;
     return extractGrokBaseUrl(cfg?.config) || "";
   });
 
@@ -1913,7 +1911,7 @@ function ProviderFormFull({
                     })}
                     hint={t("grokConfig.apiUrlHint", {
                       defaultValue:
-                        "写入 [model.custom].base_url，并保证 default = \"custom\"",
+                        '写入 [model.custom].base_url，并保证 default = "custom"',
                     })}
                     onManageClick={() => setIsGrokEndpointModalOpen(true)}
                   />
@@ -1965,9 +1963,7 @@ function ProviderFormFull({
                 }
                 authError={codexAuthError}
                 configError={codexConfigError}
-                onExtract={
-                  appId === "codex" ? handleCodexExtract : undefined
-                }
+                onExtract={appId === "codex" ? handleCodexExtract : undefined}
                 isExtracting={appId === "codex" ? isCodexExtracting : false}
                 variant={appId === "grok" ? "grok" : "codex"}
               />

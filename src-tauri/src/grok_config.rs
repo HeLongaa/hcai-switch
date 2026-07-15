@@ -11,9 +11,7 @@ use std::path::PathBuf;
 use serde_json::{json, Map, Value};
 use toml_edit::{DocumentMut, Item, Table};
 
-use crate::config::{
-    delete_file, get_home_dir, read_json_file, write_json_file, write_text_file,
-};
+use crate::config::{delete_file, get_home_dir, read_json_file, write_json_file, write_text_file};
 use crate::error::AppError;
 use crate::settings::get_grok_override_dir;
 
@@ -108,17 +106,14 @@ pub fn provider_settings_from_live() -> Result<Value, AppError> {
 /// - `apiKey` (optional) is written into `~/.grok/.env` for keys referenced by
 ///   `env_key` in config.toml (Grok CLI reads API keys from process env).
 pub fn write_grok_provider_live(settings_config: &Value) -> Result<(), AppError> {
-    let obj = settings_config.as_object().ok_or_else(|| {
-        AppError::Config("Grok 供应商配置必须是 JSON 对象".to_string())
-    })?;
+    let obj = settings_config
+        .as_object()
+        .ok_or_else(|| AppError::Config("Grok 供应商配置必须是 JSON 对象".to_string()))?;
 
     let auth = obj.get("auth").cloned().unwrap_or_else(|| json!({}));
     write_grok_auth(&auth)?;
 
-    let config = obj
-        .get("config")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let config = obj.get("config").and_then(|v| v.as_str()).unwrap_or("");
     write_grok_config_text(config)?;
 
     // BYOK: sync apiKey → ~/.grok/.env under env_key names from config
@@ -257,9 +252,9 @@ pub fn build_byok_config_toml(
     // [model.<key>]
     {
         let model_table = doc["model"].or_insert(Item::Table(Table::new()));
-        let root = model_table.as_table_mut().ok_or_else(|| {
-            AppError::Config("[model] 段必须是 table".to_string())
-        })?;
+        let root = model_table
+            .as_table_mut()
+            .ok_or_else(|| AppError::Config("[model] 段必须是 table".to_string()))?;
         let mut entry = Table::new();
         entry["model"] = toml_edit::value(model_id);
         entry["base_url"] = toml_edit::value(base_url);
@@ -330,10 +325,7 @@ pub fn live_exists() -> bool {
 /// Snapshot live into a plain map for debugging / import.
 pub fn live_status() -> Map<String, Value> {
     let mut m = Map::new();
-    m.insert(
-        "dir".into(),
-        json!(get_grok_config_dir().to_string_lossy()),
-    );
+    m.insert("dir".into(), json!(get_grok_config_dir().to_string_lossy()));
     m.insert("authExists".into(), json!(get_grok_auth_path().exists()));
     m.insert(
         "configExists".into(),

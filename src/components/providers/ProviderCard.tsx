@@ -418,8 +418,6 @@ export function ProviderCard({
                 failoverPriority && (
                   <FailoverPriorityBadge priority={failoverPriority} />
                 )}
-
-
             </div>
 
             {displayUrl && (

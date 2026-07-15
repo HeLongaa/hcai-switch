@@ -50,7 +50,9 @@ export const GROK_BYOK_MODEL_KEY = "custom";
 export const GROK_BYOK_MODEL_ID = "grok-4.5";
 
 /** Minimal official-style config when live is empty (OIDC / subscription) */
-export function defaultGrokConfigToml(defaultModel = GROK_DEFAULT_MODEL): string {
+export function defaultGrokConfigToml(
+  defaultModel = GROK_DEFAULT_MODEL,
+): string {
   return `[models]
 default = ${JSON.stringify(defaultModel)}
 

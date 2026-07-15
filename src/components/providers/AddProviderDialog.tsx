@@ -53,8 +53,7 @@ export function AddProviderDialog({
 }: AddProviderDialogProps) {
   const { t } = useTranslation();
   // OpenCode and Claude Desktop don't support universal providers
-  const showUniversalTab =
-    appId !== "opencode" && appId !== "claude-desktop";
+  const showUniversalTab = appId !== "opencode" && appId !== "claude-desktop";
   const [activeTab, setActiveTab] = useState<"app-specific" | "universal">(
     "app-specific",
   );
@@ -230,9 +229,7 @@ export function AddProviderDialog({
           if (extractedBaseUrl) addUrl(extractedBaseUrl);
         }
       } else if (appId === "opencode") {
-        const options = parsedConfig.options as
-          | Record<string, any>
-          | undefined;
+        const options = parsedConfig.options as Record<string, any> | undefined;
         if (options?.baseURL) addUrl(options.baseURL);
       }
 

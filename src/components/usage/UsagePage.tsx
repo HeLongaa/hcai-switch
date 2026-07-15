@@ -2,10 +2,7 @@ import { useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { UsageDashboard } from "@/components/usage/UsageDashboard";
-import {
-  useSettings,
-  type SettingsFormState,
-} from "@/hooks/useSettings";
+import { useSettings, type SettingsFormState } from "@/hooks/useSettings";
 
 /**
  * Standalone usage stats page (sidebar tools entry).

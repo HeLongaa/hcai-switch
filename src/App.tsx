@@ -1552,250 +1552,254 @@ function App() {
           className="flex min-h-0 min-w-0 flex-1 flex-col"
           style={{ paddingTop: dragBarHeight }}
         >
-      {currentView !== "hcai" && (
-      <header
-        className="z-50 w-full shrink-0 transition-all duration-300 bg-background/80 backdrop-blur-md"
-        {...DRAG_REGION_ATTR}
-        style={
-          {
-            ...DRAG_REGION_STYLE,
-            height: HEADER_HEIGHT,
-          } as any
-        }
-      >
-        <div
-          className="flex h-full items-center justify-between gap-2 px-6"
-          {...DRAG_REGION_ATTR}
-          style={{ ...DRAG_REGION_STYLE } as any}
-        >
-          <div
-            className="flex items-center gap-1"
-            style={{ WebkitAppRegion: "no-drag" } as any}
-          >
-            {currentView === "providers" ? (
-              (() => {
-                const meta = ACTIVE_APP_META[activeApp];
-                const BadgeIcon = meta.badge;
-                return (
-                  <div className="flex items-center gap-2.5">
-                    <span className="relative inline-flex shrink-0">
-                      <ProviderIcon
-                        icon={meta.icon}
-                        name={meta.name}
-                        size={22}
-                      />
-                      {BadgeIcon ? (
-                        <span className="absolute -bottom-0.5 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-background bg-muted">
-                          <BadgeIcon className="h-2 w-2" />
-                        </span>
-                      ) : null}
-                    </span>
-                    <h1 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                      {meta.name}
-                      {meta.beta ? (
-                        <span className="beta-badge" aria-label="Beta">
-                          Beta
-                        </span>
-                      ) : null}
-                    </h1>
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="flex items-center gap-2.5">
-                {(() => {
-                  const meta = VIEW_HEADER_ICON[currentView];
-                  if (!meta) return null;
-                  if ("kind" in meta) {
-                    return (
-                      <span
-                        className={cn(
-                          "inline-flex shrink-0 items-center justify-center",
-                          meta.className,
-                        )}
-                      >
-                        <McpIcon size={22} />
-                      </span>
-                    );
-                  }
-                  const Icon = meta.Icon;
-                  return (
-                    <Icon
-                      className={cn("h-[22px] w-[22px] shrink-0", meta.className)}
-                      strokeWidth={2}
-                    />
-                  );
-                })()}
-                <h1 className="text-lg font-semibold tracking-tight">
-                  {currentView === "settings" && t("settings.title")}
-                  {currentView === "usage" && t("usage.title")}
-                  {currentView === "prompts" &&
-                    t("prompts.title", {
-                      appName: t(`apps.${sharedFeatureApp}`),
-                    })}
-                  {currentView === "skills" && t("skills.title")}
-                  {currentView === "skillsDiscovery" && t("skills.title")}
-                  {currentView === "mcp" && t("mcp.unifiedPanel.title")}
-                  {currentView === "agents" && t("agents.title")}
-                  {currentView === "universal" &&
-                    t("universalProvider.title", {
-                      defaultValue: "统一供应商",
-                    })}
-                  {currentView === "sessions" && t("sessionManager.title")}
-                </h1>
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-1 min-w-0 items-center justify-end gap-1.5">
-            {currentView === "providers" &&
-              activeApp !== "opencode" &&
-              activeApp !== "grok" && (
-                <div
-                  className="flex shrink-0 items-center gap-1.5"
-                  style={{ WebkitAppRegion: "no-drag" } as any}
-                >
-                  {activeApp === "claude-desktop" ? (
-                    <ClaudeDesktopRouteToggle />
-                  ) : (
-                    settingsData?.enableLocalProxy && (
-                      <ProxyToggle activeApp={activeApp} />
-                    )
-                  )}
-                  {activeApp !== "claude-desktop" &&
-                    settingsData?.enableFailoverToggle && (
-                      <FailoverToggle activeApp={activeApp} />
-                    )}
-                </div>
-              )}
-            {currentView === "providers" &&
-              (settingsData?.showProfileSwitcher ?? true) && (
-                <div
-                  className="flex shrink-0 items-center"
-                  style={{ WebkitAppRegion: "no-drag" } as any}
-                >
-                  <ProfileSwitcher activeApp={activeApp} />
-                </div>
-              )}
-            <div className="flex shrink-0 items-center gap-1.5 py-4 pr-2">
+          {currentView !== "hcai" && (
+            <header
+              className="z-50 w-full shrink-0 transition-all duration-300 bg-background/80 backdrop-blur-md"
+              {...DRAG_REGION_ATTR}
+              style={
+                {
+                  ...DRAG_REGION_STYLE,
+                  height: HEADER_HEIGHT,
+                } as any
+              }
+            >
               <div
-                className="flex shrink-0 items-center gap-1.5"
-                style={{ WebkitAppRegion: "no-drag" } as any}
+                className="flex h-full items-center justify-between gap-2 px-6"
+                {...DRAG_REGION_ATTR}
+                style={{ ...DRAG_REGION_STYLE } as any}
               >
-                {currentView === "prompts" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => promptPanelRef.current?.openAdd()}
-                    className="hover:bg-black/5 dark:hover:bg-white/5"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    {t("prompts.add")}
-                  </Button>
-                )}
-                {currentView === "mcp" && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => mcpPanelRef.current?.openImport()}
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
+                <div
+                  className="flex items-center gap-1"
+                  style={{ WebkitAppRegion: "no-drag" } as any}
+                >
+                  {currentView === "providers" ? (
+                    (() => {
+                      const meta = ACTIVE_APP_META[activeApp];
+                      const BadgeIcon = meta.badge;
+                      return (
+                        <div className="flex items-center gap-2.5">
+                          <span className="relative inline-flex shrink-0">
+                            <ProviderIcon
+                              icon={meta.icon}
+                              name={meta.name}
+                              size={22}
+                            />
+                            {BadgeIcon ? (
+                              <span className="absolute -bottom-0.5 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-background bg-muted">
+                                <BadgeIcon className="h-2 w-2" />
+                              </span>
+                            ) : null}
+                          </span>
+                          <h1 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+                            {meta.name}
+                            {meta.beta ? (
+                              <span className="beta-badge" aria-label="Beta">
+                                Beta
+                              </span>
+                            ) : null}
+                          </h1>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="flex items-center gap-2.5">
+                      {(() => {
+                        const meta = VIEW_HEADER_ICON[currentView];
+                        if (!meta) return null;
+                        if ("kind" in meta) {
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex shrink-0 items-center justify-center",
+                                meta.className,
+                              )}
+                            >
+                              <McpIcon size={22} />
+                            </span>
+                          );
+                        }
+                        const Icon = meta.Icon;
+                        return (
+                          <Icon
+                            className={cn(
+                              "h-[22px] w-[22px] shrink-0",
+                              meta.className,
+                            )}
+                            strokeWidth={2}
+                          />
+                        );
+                      })()}
+                      <h1 className="text-lg font-semibold tracking-tight">
+                        {currentView === "settings" && t("settings.title")}
+                        {currentView === "usage" && t("usage.title")}
+                        {currentView === "prompts" &&
+                          t("prompts.title", {
+                            appName: t(`apps.${sharedFeatureApp}`),
+                          })}
+                        {currentView === "skills" && t("skills.title")}
+                        {currentView === "skillsDiscovery" && t("skills.title")}
+                        {currentView === "mcp" && t("mcp.unifiedPanel.title")}
+                        {currentView === "agents" && t("agents.title")}
+                        {currentView === "universal" &&
+                          t("universalProvider.title", {
+                            defaultValue: "统一供应商",
+                          })}
+                        {currentView === "sessions" &&
+                          t("sessionManager.title")}
+                      </h1>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-1 min-w-0 items-center justify-end gap-1.5">
+                  {currentView === "providers" &&
+                    activeApp !== "opencode" &&
+                    activeApp !== "grok" && (
+                      <div
+                        className="flex shrink-0 items-center gap-1.5"
+                        style={{ WebkitAppRegion: "no-drag" } as any}
+                      >
+                        {activeApp === "claude-desktop" ? (
+                          <ClaudeDesktopRouteToggle />
+                        ) : (
+                          settingsData?.enableLocalProxy && (
+                            <ProxyToggle activeApp={activeApp} />
+                          )
+                        )}
+                        {activeApp !== "claude-desktop" &&
+                          settingsData?.enableFailoverToggle && (
+                            <FailoverToggle activeApp={activeApp} />
+                          )}
+                      </div>
+                    )}
+                  {currentView === "providers" &&
+                    (settingsData?.showProfileSwitcher ?? true) && (
+                      <div
+                        className="flex shrink-0 items-center"
+                        style={{ WebkitAppRegion: "no-drag" } as any}
+                      >
+                        <ProfileSwitcher activeApp={activeApp} />
+                      </div>
+                    )}
+                  <div className="flex shrink-0 items-center gap-1.5 py-4 pr-2">
+                    <div
+                      className="flex shrink-0 items-center gap-1.5"
+                      style={{ WebkitAppRegion: "no-drag" } as any}
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      {t("mcp.importExisting")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => mcpPanelRef.current?.openAdd()}
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      {t("mcp.addMcp")}
-                    </Button>
-                  </>
-                )}
-                {currentView === "skills" && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        unifiedSkillsPanelRef.current?.openRestoreFromBackup()
-                      }
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <History className="w-4 h-4 mr-2" />
-                      {t("skills.restoreFromBackup.button")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        unifiedSkillsPanelRef.current?.openInstallFromZip()
-                      }
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <FolderArchive className="w-4 h-4 mr-2" />
-                      {t("skills.installFromZip.button")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        unifiedSkillsPanelRef.current?.openImport()
-                      }
-                      className="relative hover:bg-black/5 dark:hover:bg-white/5"
-                      title={
-                        hasUnmanagedSkills
-                          ? t("skills.unmanagedAvailable")
-                          : undefined
-                      }
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      {t("skills.import")}
-                      {hasUnmanagedSkills && (
-                        <span
-                          className="absolute top-1 right-1 h-2 w-2 rounded-full bg-green-500"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleOpenSkillsDiscovery}
-                      className="hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      <Search className="w-4 h-4 mr-2" />
-                      {t("skills.discover")}
-                    </Button>
-                  </>
-                )}
-                {currentView === "skillsDiscovery" && (
-                  <>
-                    {getSkillsPageHeaderActions(skillsDiscoverySource).map(
-                      ({ key, labelKey, Icon, execute }) => (
+                      {currentView === "prompts" && (
                         <Button
-                          key={key}
                           variant="ghost"
                           size="sm"
-                          onClick={() => execute(skillsPageRef.current)}
+                          onClick={() => promptPanelRef.current?.openAdd()}
                           className="hover:bg-black/5 dark:hover:bg-white/5"
                         >
-                          <Icon className="w-4 h-4 mr-2" />
-                          {t(labelKey)}
+                          <Plus className="w-4 h-4 mr-2" />
+                          {t("prompts.add")}
                         </Button>
-                      ),
-                    )}
-                  </>
-                )}
+                      )}
+                      {currentView === "mcp" && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => mcpPanelRef.current?.openImport()}
+                            className="hover:bg-black/5 dark:hover:bg-white/5"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            {t("mcp.importExisting")}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => mcpPanelRef.current?.openAdd()}
+                            className="hover:bg-black/5 dark:hover:bg-white/5"
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            {t("mcp.addMcp")}
+                          </Button>
+                        </>
+                      )}
+                      {currentView === "skills" && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              unifiedSkillsPanelRef.current?.openRestoreFromBackup()
+                            }
+                            className="hover:bg-black/5 dark:hover:bg-white/5"
+                          >
+                            <History className="w-4 h-4 mr-2" />
+                            {t("skills.restoreFromBackup.button")}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              unifiedSkillsPanelRef.current?.openInstallFromZip()
+                            }
+                            className="hover:bg-black/5 dark:hover:bg-white/5"
+                          >
+                            <FolderArchive className="w-4 h-4 mr-2" />
+                            {t("skills.installFromZip.button")}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              unifiedSkillsPanelRef.current?.openImport()
+                            }
+                            className="relative hover:bg-black/5 dark:hover:bg-white/5"
+                            title={
+                              hasUnmanagedSkills
+                                ? t("skills.unmanagedAvailable")
+                                : undefined
+                            }
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            {t("skills.import")}
+                            {hasUnmanagedSkills && (
+                              <span
+                                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-green-500"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleOpenSkillsDiscovery}
+                            className="hover:bg-black/5 dark:hover:bg-white/5"
+                          >
+                            <Search className="w-4 h-4 mr-2" />
+                            {t("skills.discover")}
+                          </Button>
+                        </>
+                      )}
+                      {currentView === "skillsDiscovery" && (
+                        <>
+                          {getSkillsPageHeaderActions(
+                            skillsDiscoverySource,
+                          ).map(({ key, labelKey, Icon, execute }) => (
+                            <Button
+                              key={key}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => execute(skillsPageRef.current)}
+                              className="hover:bg-black/5 dark:hover:bg-white/5"
+                            >
+                              <Icon className="w-4 h-4 mr-2" />
+                              {t(labelKey)}
+                            </Button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </header>
-      )}
+            </header>
+          )}
 
           <main className="flex flex-1 min-h-0 flex-col overflow-hidden animate-fade-in">
             {renderContent()}

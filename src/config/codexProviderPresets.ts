@@ -108,7 +108,7 @@ function modelCatalog(
 }
 
 export const codexProviderPresets: CodexProviderPreset[] = [
-{
+  {
     name: "HCAI",
     websiteUrl: "https://ai.hctopup.com/",
     apiKeyUrl: "https://ai.hctopup.com/keys",
@@ -139,7 +139,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#E53935",
   },
 
-{
+  {
     name: "OpenAI Official",
     websiteUrl: "https://chatgpt.com/codex",
     isOfficial: true,
@@ -155,7 +155,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#00A67E",
   },
 
-{
+  {
     name: "火山Agentplan",
     websiteUrl:
       "https://www.volcengine.com/activity/codingplan?ac=MMAP8JTTCAQ2&rc=6J6FV5N2&utm_campaign=hw&utm_content=ccswitch&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=ccswitch",
@@ -174,8 +174,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "ark-code-latest",
         displayName: "Ark Code Latest",
         contextWindow: 256000,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     isPartner: true,
     partnerPromotionKey: "volcengine_agentplan",
@@ -183,7 +183,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#3370FF",
   },
 
-{
+  {
     name: "BytePlus",
     websiteUrl:
       "https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=ccswitch&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=ccswitch",
@@ -196,16 +196,16 @@ export const codexProviderPresets: CodexProviderPreset[] = [
       "ark-code-latest",
     ),
     endpointCandidates: [
-      "https://ark.ap-southeast.bytepluses.com/api/coding/v3"
-],
+      "https://ark.ap-southeast.bytepluses.com/api/coding/v3",
+    ],
     apiFormat: "openai_chat",
     modelCatalog: modelCatalog([
       {
         model: "ark-code-latest",
         displayName: "Ark Code Latest",
         contextWindow: 256000,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     isPartner: true,
     partnerPromotionKey: "byteplus",
@@ -213,7 +213,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#3370FF",
   },
 
-{
+  {
     name: "DouBaoSeed",
     websiteUrl:
       "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D&utm_campaign=hw&utm_content=ccswitch&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=ccswitch",
@@ -235,8 +235,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "doubao-seed-2-1-pro-260628",
         displayName: "Doubao Seed 2.1 Pro",
         contextWindow: 262144,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     isPartner: true,
     partnerPromotionKey: "doubaoseed",
@@ -244,7 +244,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#3370FF",
   },
 
-{
+  {
     name: "DeepSeek",
     websiteUrl: "https://platform.deepseek.com",
     apiKeyUrl: "https://platform.deepseek.com/api_keys",
@@ -266,8 +266,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "deepseek-v4-pro",
         displayName: "DeepSeek V4 Pro",
         contextWindow: 1000000,
-      }
-]),
+      },
+    ]),
     codexChatReasoning: {
       supportsThinking: true,
       supportsEffort: true,
@@ -281,7 +281,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#1E88E5",
   },
 
-{
+  {
     name: "Zhipu GLM",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
@@ -294,8 +294,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     endpointCandidates: ["https://open.bigmodel.cn/api/coding/paas/v4"],
     apiFormat: "openai_chat",
     modelCatalog: modelCatalog([
-      { model: "glm-5.2", displayName: "GLM-5.2", contextWindow: 200000 }
-]),
+      { model: "glm-5.2", displayName: "GLM-5.2", contextWindow: 200000 },
+    ]),
     codexChatReasoning: {
       supportsThinking: true,
       supportsEffort: false,
@@ -308,7 +308,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#0F62FE",
   },
 
-{
+  {
     name: "Zhipu GLM en",
     websiteUrl: "https://z.ai",
     apiKeyUrl: "https://z.ai/subscribe?ic=8JVLJQFSKB",
@@ -321,8 +321,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     endpointCandidates: ["https://api.z.ai/api/coding/paas/v4"],
     apiFormat: "openai_chat",
     modelCatalog: modelCatalog([
-      { model: "glm-5.2", displayName: "GLM-5.2", contextWindow: 200000 }
-]),
+      { model: "glm-5.2", displayName: "GLM-5.2", contextWindow: 200000 },
+    ]),
     codexChatReasoning: {
       supportsThinking: true,
       supportsEffort: false,
@@ -335,7 +335,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#0F62FE",
   },
 
-{
+  {
     name: "Baidu Qianfan Coding Plan",
     websiteUrl: "https://cloud.baidu.com/product/qianfan_modelbuilder",
     apiKeyUrl:
@@ -353,14 +353,14 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "qianfan-code-latest",
         displayName: "Qianfan Code Latest",
         contextWindow: 131072,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "baidu",
     iconColor: "#2932E1",
   },
 
-{
+  {
     name: "Bailian",
     websiteUrl: "https://bailian.console.aliyun.com",
     apiKeyUrl: "https://bailian.console.aliyun.com/#/api-key",
@@ -379,14 +379,14 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "qwen3-coder-plus",
         displayName: "Qwen3 Coder Plus",
         contextWindow: 1048576,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "bailian",
     iconColor: "#624AFF",
   },
 
-{
+  {
     name: "Kimi",
     primePartner: true,
     websiteUrl: "https://platform.kimi.com?aff=cc-switch",
@@ -404,8 +404,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "kimi-k2.7-code",
         displayName: "Kimi K2.7 Code",
         contextWindow: 262144,
-      }
-]),
+      },
+    ]),
     codexChatReasoning: {
       supportsThinking: true,
       supportsEffort: false,
@@ -418,7 +418,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#6366F1",
   },
 
-{
+  {
     name: "Kimi For Coding",
     primePartner: true,
     websiteUrl: "https://www.kimi.com/code/?aff=cc-switch",
@@ -437,8 +437,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "kimi-for-coding",
         displayName: "Kimi For Coding",
         contextWindow: 262144,
-      }
-]),
+      },
+    ]),
     codexChatReasoning: {
       supportsThinking: true,
       supportsEffort: false,
@@ -451,7 +451,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#6366F1",
   },
 
-{
+  {
     name: "StepFun",
     websiteUrl: "https://platform.stepfun.com/step-plan",
     apiKeyUrl: "https://platform.stepfun.com/interface-key",
@@ -478,14 +478,14 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "step-3.5-flash",
         displayName: "Step 3.5 Flash",
         contextWindow: 262144,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "stepfun",
     iconColor: "#16D6D2",
   },
 
-{
+  {
     name: "StepFun en",
     websiteUrl: "https://platform.stepfun.ai/step-plan",
     apiKeyUrl: "https://platform.stepfun.ai/interface-key",
@@ -512,14 +512,14 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "step-3.5-flash",
         displayName: "Step 3.5 Flash",
         contextWindow: 262144,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "stepfun",
     iconColor: "#16D6D2",
   },
 
-{
+  {
     name: "Longcat",
     websiteUrl: "https://longcat.chat/platform",
     apiKeyUrl: "https://longcat.chat/platform/api_keys",
@@ -539,14 +539,14 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "LongCat-2.0",
         displayName: "LongCat 2.0",
         contextWindow: 1048576,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "longcat",
     iconColor: "#29E154",
   },
 
-{
+  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
@@ -570,8 +570,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         inputModalities: ["text", "image"],
         baseInstructions:
           "You are Codex, a coding agent based on MiniMax-M3. You and the user share the same workspace and collaborate to achieve the user's goals.",
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     partnerPromotionKey: "minimax_cn",
     theme: {
@@ -582,7 +582,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#FF6B6B",
   },
 
-{
+  {
     name: "MiniMax en",
     websiteUrl: "https://platform.minimax.io",
     apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
@@ -606,8 +606,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         inputModalities: ["text", "image"],
         baseInstructions:
           "You are Codex, a coding agent based on MiniMax-M3. You and the user share the same workspace and collaborate to achieve the user's goals.",
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     partnerPromotionKey: "minimax_en",
     theme: {
@@ -618,7 +618,7 @@ export const codexProviderPresets: CodexProviderPreset[] = [
     iconColor: "#FF6B6B",
   },
 
-{
+  {
     name: "BaiLing",
     websiteUrl: "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
     apiKeyUrl: "https://ling.tbox.cn/open",
@@ -635,12 +635,12 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         model: "Ling-2.6-1T",
         displayName: "Ling-2.6-1T",
         contextWindow: 262144,
-      }
-]),
+      },
+    ]),
     category: "cn_official",
   },
 
-{
+  {
     name: "Xiaomi MiMo",
     websiteUrl: "https://platform.xiaomimimo.com",
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/api-keys",
@@ -671,14 +671,14 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         inputModalities: ["text", "image"],
         baseInstructions:
           "You are MiMo, an AI assistant developed by Xiaomi. Today's date: {date} {week}. Your knowledge cutoff date is December 2024.",
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "xiaomimimo",
     iconColor: "#000000",
   },
 
-{
+  {
     name: "Xiaomi MiMo Token Plan (China)",
     websiteUrl: "https://platform.xiaomimimo.com/#/token-plan",
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/plan-manage",
@@ -709,8 +709,8 @@ export const codexProviderPresets: CodexProviderPreset[] = [
         inputModalities: ["text", "image"],
         baseInstructions:
           "You are MiMo, an AI assistant developed by Xiaomi. Today's date: {date} {week}. Your knowledge cutoff date is December 2024.",
-      }
-]),
+      },
+    ]),
     category: "cn_official",
     icon: "xiaomimimo",
     iconColor: "#000000",

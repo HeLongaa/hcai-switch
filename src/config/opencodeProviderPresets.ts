@@ -281,7 +281,7 @@ export function getPresetModelDefaults(
 }
 
 export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
-{
+  {
     name: "HCAI Claude",
     websiteUrl: "https://ai.hctopup.com/",
     apiKeyUrl: "https://ai.hctopup.com/keys",
@@ -311,7 +311,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "HCAI Codex",
     websiteUrl: "https://ai.hctopup.com/",
     apiKeyUrl: "https://ai.hctopup.com/keys",
@@ -346,7 +346,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "火山Agentplan",
     websiteUrl:
       "https://www.volcengine.com/activity/codingplan?ac=MMAP8JTTCAQ2&rc=6J6FV5N2&utm_campaign=hw&utm_content=ccswitch&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=ccswitch",
@@ -380,7 +380,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "BytePlus",
     websiteUrl:
       "https://www.byteplus.com/en/product/modelark?utm_campaign=hw&utm_content=ccswitch&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=ccswitch",
@@ -414,7 +414,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "DouBaoSeed",
     websiteUrl:
       "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D&utm_campaign=hw&utm_content=ccswitch&utm_medium=devrel_tool_web&utm_source=OWO&utm_term=ccswitch",
@@ -448,7 +448,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "DeepSeek",
     websiteUrl: "https://platform.deepseek.com",
     apiKeyUrl: "https://platform.deepseek.com/api_keys",
@@ -476,7 +476,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Zhipu GLM",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
@@ -510,7 +510,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Zhipu GLM en",
     websiteUrl: "https://z.ai",
     apiKeyUrl: "https://z.ai/subscribe?ic=8JVLJQFSKB",
@@ -544,7 +544,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Bailian",
     websiteUrl: "https://bailian.console.aliyun.com",
     apiKeyUrl: "https://bailian.console.aliyun.com/#/api-key",
@@ -576,7 +576,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Kimi",
     primePartner: true,
     websiteUrl: "https://platform.kimi.com?aff=cc-switch",
@@ -611,7 +611,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Kimi For Coding",
     primePartner: true,
     websiteUrl: "https://www.kimi.com/code/?aff=cc-switch",
@@ -646,7 +646,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "StepFun",
     websiteUrl: "https://platform.stepfun.com/step-plan",
     apiKeyUrl: "https://platform.stepfun.com/interface-key",
@@ -681,7 +681,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "StepFun en",
     websiteUrl: "https://platform.stepfun.ai/step-plan",
     apiKeyUrl: "https://platform.stepfun.ai/interface-key",
@@ -715,7 +715,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "StepFun Step Plan",
     websiteUrl: "https://platform.stepfun.com/docs/zh/step-plan/overview",
     apiKeyUrl: "https://platform.stepfun.com/interface-key",
@@ -743,7 +743,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "KAT-Coder",
     websiteUrl: "https://console.streamlake.ai",
     apiKeyUrl: "https://console.streamlake.ai/console/api-key",
@@ -785,7 +785,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     icon: "catcoder",
   },
 
-{
+  {
     name: "Longcat",
     websiteUrl: "https://longcat.chat/platform",
     apiKeyUrl: "https://longcat.chat/platform/api_keys",
@@ -822,7 +822,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "MiniMax",
     websiteUrl: "https://platform.minimaxi.com",
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
@@ -855,7 +855,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "MiniMax en",
     websiteUrl: "https://platform.minimax.io",
     apiKeyUrl: "https://platform.minimax.io/subscribe/coding-plan",
@@ -888,7 +888,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "BaiLing",
     websiteUrl: "https://alipaytbox.yuque.com/sxs0ba/ling/get_started",
     settingsConfig: {
@@ -913,7 +913,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Xiaomi MiMo",
     websiteUrl: "https://platform.xiaomimimo.com",
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/api-keys",
@@ -950,7 +950,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Xiaomi MiMo Token Plan (China)",
     websiteUrl: "https://platform.xiaomimimo.com/#/token-plan",
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/plan-manage",
@@ -987,7 +987,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "AWS Bedrock",
     websiteUrl: "https://aws.amazon.com/bedrock/",
     settingsConfig: {
@@ -1037,7 +1037,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     },
   },
 
-{
+  {
     name: "Oh My OpenCode",
     websiteUrl: "https://github.com/code-yeongyu/oh-my-openagent",
     settingsConfig: {
@@ -1051,7 +1051,7 @@ export const opencodeProviderPresets: OpenCodeProviderPreset[] = [
     isCustomTemplate: true,
   },
 
-{
+  {
     name: "Oh My OpenCode Slim",
     websiteUrl: "https://github.com/alvinunreal/oh-my-opencode-slim",
     settingsConfig: {

@@ -25,15 +25,16 @@ import { Switch } from "@/components/ui/switch";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { cn } from "@/lib/utils";
-import { TEMPLATE_TYPES, PROVIDER_TYPES, type TemplateType } from "@/config/constants";
+import {
+  TEMPLATE_TYPES,
+  PROVIDER_TYPES,
+  type TemplateType,
+} from "@/config/constants";
 import {
   CODING_PLAN_PROVIDERS,
   detectCodingPlanProvider,
 } from "@/config/codingPlanProviders";
-import {
-  HCAI_USAGE_SCRIPT_CODE,
-  isHcaiBaseUrl,
-} from "@/lib/hcai/usageScript";
+import { HCAI_USAGE_SCRIPT_CODE, isHcaiBaseUrl } from "@/lib/hcai/usageScript";
 import { formatUsageDataSummary } from "@/utils/usageDisplay";
 
 /**

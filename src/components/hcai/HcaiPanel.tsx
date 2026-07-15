@@ -143,10 +143,7 @@ export function HcaiPanel({ onProvidersChanged }: HcaiPanelProps) {
     () => models.filter(isCodexFamilyModel),
     [models],
   );
-  const grokModels = useMemo(
-    () => models.filter(isGrokFamilyModel),
-    [models],
-  );
+  const grokModels = useMemo(() => models.filter(isGrokFamilyModel), [models]);
   const fableInList = useMemo(
     () => claudeModels.find(isFableModel),
     [claudeModels],
@@ -925,9 +922,7 @@ export function HcaiPanel({ onProvidersChanged }: HcaiPanelProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>
-                  {t("hcai.apiKey", { defaultValue: "API 密钥" })}
-                </Label>
+                <Label>{t("hcai.apiKey", { defaultValue: "API 密钥" })}</Label>
                 <Input
                   type="password"
                   autoComplete="off"
@@ -1235,8 +1230,7 @@ export function HcaiPanel({ onProvidersChanged }: HcaiPanelProps) {
                   />
                   <p className="text-[11px] text-muted-foreground">
                     {t("hcai.writeHint", {
-                      defaultValue:
-                        "将以副本形式添加配置；名称：{{name}}",
+                      defaultValue: "将以副本形式添加配置；名称：{{name}}",
                       name: displayName,
                     })}
                   </p>
@@ -1352,9 +1346,7 @@ function ModelSelect({
         </SelectTrigger>
         <SelectContent>
           {allowEmpty && (
-            <SelectItem value={EMPTY}>
-              {emptyLabel || "—"}
-            </SelectItem>
+            <SelectItem value={EMPTY}>{emptyLabel || "—"}</SelectItem>
           )}
           {options.map((id) => (
             <SelectItem key={id} value={id}>

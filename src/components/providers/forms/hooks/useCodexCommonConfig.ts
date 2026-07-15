@@ -265,12 +265,7 @@ export function useCodexCommonConfig({
 
   // 新建模式：如果通用配置片段存在且有效，默认启用
   useEffect(() => {
-    if (
-      !enabled ||
-      initialData ||
-      isLoading ||
-      hasInitializedNewMode.current
-    ) {
+    if (!enabled || initialData || isLoading || hasInitializedNewMode.current) {
       return;
     }
 

@@ -227,11 +227,7 @@ struct RequestConfig {
 }
 
 /// HCAI 全部网关主机（脚本 URL 已用当前保存节点；失败时尝试其余节点）
-const HCAI_GATEWAY_HOSTS: &[&str] = &[
-    "ai.hctopup.com",
-    "ai-us.hctopup.com",
-    "ai-prod.hctopup.com",
-];
+const HCAI_GATEWAY_HOSTS: &[&str] = &["ai.hctopup.com", "ai-us.hctopup.com", "ai-prod.hctopup.com"];
 
 /// HCAI 用量请求：当前节点连接失败/5xx 时依次改写 host 重试其它区域节点
 async fn send_http_request_with_hcai_fallback(

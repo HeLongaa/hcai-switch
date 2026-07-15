@@ -33,7 +33,11 @@ function isReachable(r: EndpointLatencyResult): boolean {
 export async function pickFirstReachableEndpoint(
   candidates: string[],
   timeoutSecs = 6,
-): Promise<{ url: string; fellBack: boolean; results: EndpointLatencyResult[] }> {
+): Promise<{
+  url: string;
+  fellBack: boolean;
+  results: EndpointLatencyResult[];
+}> {
   const urls = [
     ...new Set(
       candidates
@@ -65,9 +69,7 @@ export async function pickFirstReachableEndpoint(
     const url = urls[i];
     const match =
       byUrl.get(url) ||
-      results.find(
-        (r) => r.url.trim().replace(/\/+$/, "") === url,
-      );
+      results.find((r) => r.url.trim().replace(/\/+$/, "") === url);
     if (match && isReachable(match)) {
       return {
         url,

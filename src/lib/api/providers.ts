@@ -168,7 +168,6 @@ export const providersApi = {
   async getOpenCodeLiveProviderIds(): Promise<string[]> {
     return await invoke("get_opencode_live_provider_ids");
   },
-
 };
 
 // ============================================================================

@@ -189,11 +189,33 @@ jobs:
       - name: Import Apple signing certificate
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
+
+          # Optional: without APPLE_CERTIFICATE, ship unsigned macOS builds
+          # (users may need right-click → Open on first launch).
+          if [ -z "${APPLE_CERTIFICATE//[[:space:]]/}" ]; then
+            echo "⚠️ APPLE_CERTIFICATE not set — skipping Apple code sign / notarization"
+            echo "MACOS_CODE_SIGN=false" >> "$GITHUB_ENV"
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "MACOS_CODE_SIGN=true" >> "$GITHUB_ENV"
+
           # Decode .p12 certificate from base64
           CERT_PATH="$RUNNER_TEMP/certificate.p12"
-          printf '%s' "${{ secrets.APPLE_CERTIFICATE }}" | (base64 --decode 2>/dev/null || base64 -D) > "$CERT_PATH"
+          printf '%s' "$APPLE_CERTIFICATE" | (base64 --decode 2>/dev/null || base64 -D) > "$CERT_PATH"
+          if [ ! -s "$CERT_PATH" ]; then
+            echo "❌ APPLE_CERTIFICATE is set but base64 decode produced an empty file" >&2
+            exit 1
+          fi
+
+          KEYCHAIN_PASS="${KEYCHAIN_PASSWORD:-hcai-switch-ci-keychain}"
 
           # Save original default keychain for cleanup
           ORIGINAL_DEFAULT_KEYCHAIN=$(security default-keychain -d user | tr -d '"' | xargs)
@@ -201,18 +223,18 @@ jobs:
 
           # Create temporary keychain
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" "$KEYCHAIN_PATH"
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
-          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
 
           # Import certificate
           security import "$CERT_PATH" \
             -k "$KEYCHAIN_PATH" \
-            -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" \
+            -P "${APPLE_CERTIFICATE_PASSWORD:-}" \
             -T /usr/bin/codesign \
             -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN_PATH"
 
           # Dynamically resolve signing identity (must be "Developer ID Application")
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
@@ -239,6 +261,17 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
+
+          # Unsigned: identity "-" and clear notarization credentials so Tauri won't attempt notary
+          if [ "${MACOS_CODE_SIGN:-false}" != "true" ]; then
+            export APPLE_SIGNING_IDENTITY="-"
+            unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID || true
+            echo "=== macOS unsigned build (no Developer ID certificate) ==="
+            pnpm tauri build --target universal-apple-darwin
+            echo "✅ macOS unsigned build succeeded"
+            exit 0
+          fi
+
           max_attempts=3
           for attempt in $(seq 1 "$max_attempts"); do
             echo "=== macOS build/notarization attempt ${attempt}/${max_attempts} ==="
@@ -304,9 +337,13 @@ jobs:
             exit 1
           fi
 
-          # Staple notarization ticket to .app (Tauri already notarized it)
-          xcrun stapler staple "$APP_PATH"
-          echo "✅ .app stapled"
+          # Staple notarization ticket only when we signed + notarized via Tauri
+          if [ "${MACOS_CODE_SIGN:-false}" = "true" ]; then
+            xcrun stapler staple "$APP_PATH"
+            echo "✅ .app stapled"
+          else
+            echo "⚠️ Skipping .app staple (unsigned build)"
+          fi
 
           # 1) Collect .tar.gz (updater artifact)
           NEW_TAR_GZ="HCAI-Switch-${VERSION}-macOS.tar.gz"
@@ -320,11 +357,6 @@ jobs:
           echo "macOS zip ready: $NEW_ZIP"
 
           # 3) Create styled DMG with create-dmg (Tauri's built-in DMG styling doesn't work on CI)
-          if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
-            echo "❌ APPLE_SIGNING_IDENTITY is missing before DMG creation" >&2
-            exit 1
-          fi
-
           HOMEBREW_NO_AUTO_UPDATE=1 brew install create-dmg
           NEW_DMG="HCAI-Switch-${VERSION}-macOS.dmg"
           DMG_STAGE_DIR="$RUNNER_TEMP/dmg-stage"
@@ -332,17 +364,25 @@ jobs:
           mkdir -p "$DMG_STAGE_DIR"
           ditto "$APP_PATH" "$DMG_STAGE_DIR/HCAI Switch.app"
 
+          CREATE_DMG_ARGS=(
+            --volname "HCAI Switch"
+            --background "src-tauri/icons/dmg-background.png"
+            --window-size 660 400
+            --window-pos 200 120
+            --icon-size 80
+            --icon "HCAI Switch.app" 180 220
+            --hide-extension "HCAI Switch.app"
+            --app-drop-link 480 220
+            --no-internet-enable
+          )
+          if [ "${MACOS_CODE_SIGN:-false}" = "true" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ] && [ "${APPLE_SIGNING_IDENTITY}" != "-" ]; then
+            CREATE_DMG_ARGS+=(--codesign "$APPLE_SIGNING_IDENTITY")
+          else
+            echo "⚠️ Creating unsigned DMG (no Developer ID)"
+          fi
+
           create-dmg \
-            --volname "HCAI Switch" \
-            --background "src-tauri/icons/dmg-background.png" \
-            --window-size 660 400 \
-            --window-pos 200 120 \
-            --icon-size 80 \
-            --icon "HCAI Switch.app" 180 220 \
-            --hide-extension "HCAI Switch.app" \
-            --app-drop-link 480 220 \
-            --codesign "$APPLE_SIGNING_IDENTITY" \
-            --no-internet-enable \
+            "${CREATE_DMG_ARGS[@]}" \
             "release-assets/$NEW_DMG" \
             "$DMG_STAGE_DIR"
 
@@ -350,7 +390,7 @@ jobs:
           echo "✅ Styled DMG created: $NEW_DMG"
 
       - name: Notarize macOS DMG
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && env.MACOS_CODE_SIGN == 'true'
         shell: bash
         timeout-minutes: 30
         env:
@@ -396,6 +436,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "${MACOS_CODE_SIGN:-false}" != "true" ]; then
+            echo "⚠️ Skipping codesign/notarization verification (unsigned build)"
+            exit 0
+          fi
 
           # Verify .app (from Tauri bundle)
           APP_PATH=""
