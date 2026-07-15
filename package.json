@@ -1,6 +1,6 @@
 {
   "name": "hcai-switch",
-  "version": "3.17.0",
+  "version": "0.1.0",
   "description": "All-in-One Assistant for Claude Code, Codex, Gemini CLI & more (HCAI Switch)",
   "type": "module",
   "scripts": {
