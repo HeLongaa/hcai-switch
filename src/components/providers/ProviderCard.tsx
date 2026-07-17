@@ -223,6 +223,49 @@ export function ProviderCard({
     provider.meta?.apiFormat,
     (provider.settingsConfig as Record<string, any>)?.config,
   ]);
+
+  // 供应商类型徽章：官方 / HCAI / 三方 （所有工具页面统一显示，明显区分）
+  const typeBadge = useMemo(() => {
+    const lowerName = (provider.name || "").toLowerCase();
+    const lowerIcon = (provider.icon || "").toLowerCase();
+    const configStr = JSON.stringify(provider.settingsConfig || "").toLowerCase();
+    const lowerUrl = `${provider.websiteUrl || ""} ${displayUrl || ""}`.toLowerCase();
+
+    const isGrokOfficial =
+      lowerName.includes("xai official") ||
+      lowerName.includes("grok api key") ||
+      lowerUrl.includes("api.x.ai") ||
+      lowerUrl.includes("grok.com") ||
+      lowerUrl.includes("console.x.ai") ||
+      configStr.includes("api.x.ai");
+
+    if (provider.category === "official" || isGrokOfficial) {
+      return {
+        text: t("provider.typeOfficial", { defaultValue: "官方" }),
+        cls: "bg-emerald-200 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 border border-emerald-300/70 dark:border-emerald-700/60",
+      };
+    }
+
+    const isHcai =
+      lowerName.includes("hcai") ||
+      lowerIcon === "hcai" ||
+      lowerUrl.includes("hctopup") ||
+      configStr.includes("hctopup") ||
+      lowerUrl.includes("ai.hctopup.com");
+
+    if (isHcai) {
+      return {
+        text: t("provider.typeHcai", { defaultValue: "HCAI" }),
+        cls: "bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-200 border border-red-300/70 dark:border-red-700/60",
+      };
+    }
+
+    return {
+      text: t("provider.typeThirdParty", { defaultValue: "三方" }),
+      cls: "bg-amber-200 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300/70 dark:border-amber-700/60",
+    };
+  }, [provider, t, displayUrl]);
+
   // 获取用量数据以判断是否有多套餐
   // 累加模式应用（OpenCode）：使用 isInConfig 代替 isCurrent
   const shouldAutoQuery = appId === "opencode" ? isInConfig : isCurrent;
@@ -334,6 +377,17 @@ export function ProviderCard({
               <h3 className="text-base font-semibold leading-none">
                 {provider.name}
               </h3>
+
+              {typeBadge && (
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shadow-sm",
+                    typeBadge.cls
+                  )}
+                >
+                  {typeBadge.text}
+                </span>
+              )}
 
               {isOmo && (
                 <span className="inline-flex items-center rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
@@ -508,7 +562,7 @@ export function ProviderCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-200">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <ProviderActions
               appId={appId}
               isCurrent={isCurrent}

@@ -524,7 +524,7 @@ export function HcaiConsoleSection({
               </h2>
               <p className="text-sm text-muted-foreground max-w-xs">
                 {t("hcai.tagline", {
-                  defaultValue: "全球 AI 算力分发平台 · 安全连接，智创未来",
+                  defaultValue: "全球 AI 算力分发平台 · 安全连接 · 智创未来",
                 })}
               </p>
             </div>

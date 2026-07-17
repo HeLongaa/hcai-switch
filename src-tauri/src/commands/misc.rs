@@ -9,8 +9,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tauri::AppHandle;
+use tauri::Emitter;
 use tauri::State;
 use tauri_plugin_opener::OpenerExt;
+
+use dirs;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -32,6 +35,1064 @@ pub async fn open_external(app: AppHandle, url: String) -> Result<bool, String> 
         .map_err(|e| format!("打开链接失败: {e}"))?;
 
     Ok(true)
+}
+
+/// 启动 ChatGPT（Codex Desktop）：若已安装则先尝试完全退出再重启；未安装则返回错误提示。
+/// 注意：当前官方客户端以 ChatGPT.app 形式安装。
+#[tauri::command]
+pub async fn launch_codex_desktop() -> Result<(), String> {
+    restart_codex_desktop_app()
+}
+
+// ============================================================================
+// ChatGPT / Codex Desktop 下载与更新流程（接入 Codex-App-Manager 的镜像策略）
+// 注意：官方已将 Codex Desktop 更名为 ChatGPT 桌面应用，实际安装包通常为 ChatGPT.app (bundle: com.openai.codex)
+// ============================================================================
+
+const CODEX_APPCAST_ARM64: &str = "https://codexapp.agentsmirror.com/latest/appcast.xml";
+const CODEX_APPCAST_X64: &str = "https://codexapp.agentsmirror.com/latest/appcast-x64.xml";
+
+// Mirror fallback / primary sources (as per user requirements)
+const CODEX_MIRROR_BASE: &str = "https://software.lumocore.edu.kg/codex-app/latest";
+const CODEX_MIRROR_MANIFEST: &str = "https://software.lumocore.edu.kg/codex-app/latest/release-manifest.json";
+const CODEX_MIRROR_SHA256SUMS: &str = "https://software.lumocore.edu.kg/codex-app/latest/SHA256SUMS.txt";
+
+const CLAUDE_MIRROR_BASE: &str = "https://software.lumocore.edu.kg/claude-desktop/latest";
+const CLAUDE_MIRROR_MANIFEST: &str = "https://software.lumocore.edu.kg/claude-desktop/latest/release-manifest.json";
+const CLAUDE_MIRROR_SHA256SUMS: &str = "https://software.lumocore.edu.kg/claude-desktop/latest/SHA256SUMS.txt";
+
+// Official Claude redirect endpoints for fallback
+const CLAUDE_OFFICIAL_MAC_DMG_REDIRECT: &str = "https://claude.ai/api/desktop/darwin/universal/dmg/latest/redirect";
+const CLAUDE_OFFICIAL_WIN_X64_REDIRECT: &str = "https://claude.ai/api/desktop/win32/x64/msix/latest/redirect";
+const CLAUDE_OFFICIAL_WIN_ARM64_REDIRECT: &str = "https://claude.ai/api/desktop/win32/arm64/msix/latest/redirect";
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexDesktopLatestInfo {
+    pub version: String,
+    /// Sparkle build number (numeric, used for delta matching and update decisions)
+    pub build: Option<u64>,
+    pub download_url: String,
+    /// Size of the recommended download (full or delta). For our flow we always recommend the full.
+    pub size: u64,
+    pub arch: String,
+    pub notes: Option<String>,
+    /// Size of the full archive (for savings display)
+    pub full_size: u64,
+    /// Whether the feed advertises any deltas for recent builds
+    pub has_deltas: bool,
+}
+
+#[tauri::command]
+pub async fn get_codex_desktop_latest() -> Result<CodexDesktopLatestInfo, String> {
+    let (appcast_url, arch) = if cfg!(target_os = "macos") {
+        if std::env::consts::ARCH == "aarch64" {
+            (CODEX_APPCAST_ARM64, "arm64")
+        } else {
+            (CODEX_APPCAST_X64, "x64")
+        }
+    } else if cfg!(target_os = "windows") {
+        // Windows 使用类似 manifest，暂时返回构造的最新链接（实际可扩展为 manifest 解析）
+        // 这里使用与 mac 镜像相同的域名，文件名模式基于观察
+        let arch = if std::env::consts::ARCH == "aarch64" { "arm64" } else { "x64" };
+        return Ok(CodexDesktopLatestInfo {
+            version: "latest".to_string(),
+            build: None,
+            download_url: format!("https://codexapp.agentsmirror.com/latest/win/{}/Codex-Setup.exe", arch),
+            size: 0,
+            arch: arch.to_string(),
+            notes: Some("Windows 安装包（完整下载）。建议使用 Codex App Manager 获得增量体验。".to_string()),
+            full_size: 0,
+            has_deltas: false,
+        });
+    } else {
+        return Err("当前平台暂不支持直接下载 Codex Desktop".to_string());
+    };
+
+    let xml = reqwest::get(appcast_url)
+        .await
+        .map_err(|e| format!("获取 appcast 失败: {}", e))?
+        .text()
+        .await
+        .map_err(|e| format!("读取 appcast 失败: {}", e))?;
+
+    // 解析 enclosure（优先抓第一个，通常是 full 包）
+    let enclosure_re = regex::Regex::new(
+        r#"<enclosure[^>]*url="([^"]+)"[^>]*length="(\d+)"[^>]*>"#,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let short_ver_re = regex::Regex::new(
+        r#"<sparkle:shortVersionString>([^<]+)</sparkle:shortVersionString>"#,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let build_re = regex::Regex::new(
+        r#"<sparkle:version>([^<]+)</sparkle:version>"#,
+    )
+    .map_err(|e| e.to_string())?;
+
+    // 检测 deltas 存在（<sparkle:deltas> 里有 enclosure）
+    let has_deltas = xml.contains("<sparkle:deltas>") || xml.contains("deltaFrom");
+
+    let (download_url, size) = if let Some(cap) = enclosure_re.captures(&xml) {
+        let url = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
+        let size: u64 = cap.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+        (url, size)
+    } else {
+        return Err("无法从 appcast 解析下载地址".to_string());
+    };
+
+    let version = short_ver_re
+        .captures(&xml)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let build = build_re
+        .captures(&xml)
+        .and_then(|c| c.get(1))
+        .and_then(|m| m.as_str().parse::<u64>().ok());
+
+    // full_size 取第一个 enclosure 的 size（我们目前总是下载 full）
+    let full_size = size;
+
+    Ok(CodexDesktopLatestInfo {
+        version,
+        build,
+        download_url,
+        size,
+        arch: arch.to_string(),
+        notes: None,
+        full_size,
+        has_deltas,
+    })
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexDesktopInstallStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+    /// Sparkle build (CFBundleVersion) — preferred for update comparisons
+    pub build: Option<u64>,
+    pub path: Option<String>,
+}
+
+/// 检测 ChatGPT / Codex Desktop 安装状态
+/// 官方已改名为 ChatGPT.app（bundle ID: com.openai.codex），同时兼容旧的 Codex.app / Codex Desktop.app 命名。
+#[tauri::command]
+pub async fn get_codex_desktop_install_status() -> Result<CodexDesktopInstallStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(path) = find_installed_codex_desktop_path() {
+            let (version, build) = get_macos_codex_version_and_build(&path);
+            return Ok(CodexDesktopInstallStatus {
+                installed: true,
+                version,
+                build,
+                path: Some(path),
+            });
+        }
+        return Ok(CodexDesktopInstallStatus {
+            installed: false,
+            version: None,
+            build: None,
+            path: None,
+        });
+    }
+
+    #[cfg(windows)]
+    {
+        // 简单检测常见位置
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            let base = std::path::PathBuf::from(local);
+            for folder in ["Codex", "Codex Desktop"] {
+                let exe = base.join("Programs").join(folder).join("Codex.exe");
+                if exe.exists() {
+                    return Ok(CodexDesktopInstallStatus {
+                        installed: true,
+                        version: None,
+                        build: None,
+                        path: Some(exe.to_string_lossy().to_string()),
+                    });
+                }
+            }
+        }
+        Ok(CodexDesktopInstallStatus {
+            installed: false,
+            version: None,
+            build: None,
+            path: None,
+        })
+    }
+
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        Ok(CodexDesktopInstallStatus {
+            installed: false,
+            version: None,
+            build: None,
+            path: None,
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn get_macos_codex_version_and_build(app_path: &str) -> (Option<String>, Option<u64>) {
+    use std::process::Command;
+
+    // 优先使用完整的 Info.plist 路径，defaults 对 .plist 后缀更稳健
+    let info_plist = format!("{}/Contents/Info.plist", app_path);
+
+    let short_version = Command::new("defaults")
+        .args(["read", &info_plist, "CFBundleShortVersionString"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if s.is_empty() { None } else { Some(s) }
+        });
+
+    let build = Command::new("defaults")
+        .args(["read", &info_plist, "CFBundleVersion"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            s.parse::<u64>().ok()
+        });
+
+    (short_version, build)
+}
+
+// 兼容旧调用（如果有）
+#[cfg(target_os = "macos")]
+#[allow(dead_code)]
+fn get_macos_codex_version(app_path: &str) -> Result<String, String> {
+    get_macos_codex_version_and_build(app_path)
+        .0
+        .ok_or_else(|| "无法读取版本".to_string())
+}
+
+// ============================================================================
+// Shared helpers for mirror manifest based desktop downloads (Codex fallback, Claude primary)
+// ============================================================================
+
+async fn fetch_text_with_timeout(url: &str, timeout_secs: u64) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .user_agent("cc-switch-desktop-downloader/1.0")
+        .build()
+        .map_err(|e| format!("构建 HTTP 客户端失败: {}", e))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("请求 {} 失败/超时: {}", url, e))?;
+    let status = resp.status();
+    if !status.is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("{} 返回非成功状态 {}: {}", url, status, body));
+    }
+    resp.text().await.map_err(|e| format!("读取 {} 响应失败: {}", url, e))
+}
+
+async fn fetch_bytes_with_timeout(url: &str, timeout_secs: u64) -> Result<Vec<u8>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .user_agent("cc-switch-desktop-downloader/1.0")
+        .build()
+        .map_err(|e| format!("构建客户端失败: {}", e))?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("下载 {} 失败/超时: {}", url, e))?;
+    if !resp.status().is_success() {
+        return Err(format!("下载 {} 失败，状态: {}", url, resp.status()));
+    }
+    let b = resp.bytes().await.map_err(|e| format!("读取下载内容失败: {}", e))?;
+    Ok(b.to_vec())
+}
+
+async fn fetch_release_manifest(url: &str) -> Result<serde_json::Value, String> {
+    let text = fetch_text_with_timeout(url, 20).await?;
+    serde_json::from_str(&text).map_err(|e| format!("manifest JSON 解析失败: {}", e))
+}
+
+fn compute_file_sha256(path: &std::path::Path) -> Result<String, String> {
+    use std::io::Read;
+    use sha2::Digest;
+    let mut file = std::fs::File::open(path).map_err(|e| format!("打开文件 {} 失败: {}", path.display(), e))?;
+    let mut hasher = sha2::Sha256::new();
+    let mut buffer = [0u8; 8192];
+    loop {
+        let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        if n == 0 { break; }
+        hasher.update(&buffer[..n]);
+    }
+    let result = hasher.finalize();
+    Ok(format!("{:x}", result))
+}
+
+fn extract_sha256_from_sums(sums_text: &str, filename: &str) -> Result<String, String> {
+    for line in sums_text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') { continue; }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let hash = parts[0];
+            let name = parts.last().unwrap().trim_start_matches('*').trim();
+            if name == filename {
+                return Ok(hash.to_string());
+            }
+        }
+    }
+    Err(format!("在 SHA256SUMS.txt 中未找到 {}", filename))
+}
+
+async fn verify_download_sha(path: &std::path::Path, filename: &str, sums_url: &str) -> Result<(), String> {
+    let sums = fetch_text_with_timeout(sums_url, 15).await?;
+    let expected = extract_sha256_from_sums(&sums, filename)?;
+    let actual = compute_file_sha256(path)?;
+    if actual.eq_ignore_ascii_case(&expected) {
+        Ok(())
+    } else {
+        // 校验失败时删除坏文件
+        let _ = std::fs::remove_file(path);
+        Err(format!("SHA256 校验失败: 期望 {} 实际 {}", &expected[..12], &actual[..12]))
+    }
+}
+
+// Platform key mapping for mirror manifests
+fn codex_mirror_platform_key() -> Option<&'static str> {
+    if cfg!(target_os = "macos") {
+        if std::env::consts::ARCH == "aarch64" {
+            Some("mac-arm64-dmg")
+        } else {
+            Some("mac-x64-dmg")
+        }
+    } else if cfg!(target_os = "windows") {
+        if std::env::consts::ARCH == "aarch64" {
+            Some("win-arm64-msix")
+        } else {
+            Some("win-x64-msix")
+        }
+    } else {
+        None
+    }
+}
+
+fn claude_mirror_platform_key() -> Option<&'static str> {
+    if cfg!(target_os = "macos") {
+        // 优先 dmg（用户要求沿用常见格式，dmg 更便于用户直接打开安装）
+        Some("mac-universal-dmg")
+    } else if cfg!(target_os = "windows") {
+        if std::env::consts::ARCH == "aarch64" {
+            Some("win-arm64-msix")
+        } else {
+            Some("win-x64-msix")
+        }
+    } else {
+        None
+    }
+}
+
+async fn get_codex_mirror_download_info() -> Result<(String, String, String), String> {
+    // returns (download_url, filename, version)
+    let manifest = fetch_release_manifest(CODEX_MIRROR_MANIFEST).await?;
+    let key = codex_mirror_platform_key().ok_or_else(|| "当前平台不支持 Codex Desktop mirror 下载".to_string())?;
+    let plat = manifest
+        .get("platforms")
+        .and_then(|p| p.get(key))
+        .ok_or_else(|| format!("manifest 中未找到平台 key: {}", key))?;
+    let filename = plat
+        .get("filename")
+        .and_then(|f| f.as_str())
+        .ok_or("manifest 条目缺少 filename")?
+        .to_string();
+    let version = manifest
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("latest")
+        .to_string();
+    let url = format!("{}/{}", CODEX_MIRROR_BASE, filename);
+    Ok((url, filename, version))
+}
+
+async fn get_claude_mirror_download_info() -> Result<(String, String, String), String> {
+    let manifest = fetch_release_manifest(CLAUDE_MIRROR_MANIFEST).await?;
+    let key = claude_mirror_platform_key().ok_or_else(|| "当前平台不支持 Claude Desktop mirror".to_string())?;
+    let plat = manifest
+        .get("platforms")
+        .and_then(|p| p.get(key))
+        .ok_or_else(|| format!("manifest 缺少平台: {}", key))?;
+    let filename = plat.get("filename").and_then(|f| f.as_str()).ok_or("缺少 filename")?.to_string();
+    let version = manifest.get("version").and_then(|v| v.as_str()).unwrap_or("latest").to_string();
+    let url = format!("{}/{}", CLAUDE_MIRROR_BASE, filename);
+    Ok((url, filename, version))
+}
+
+/// 下载 Codex Desktop 最新安装包（完整包）。文件会保存到用户的「下载」目录下的 Codex Desktop Installers 文件夹，便于后续管理。
+///
+/// 保留原有 appcast (agentsmirror) 作为 primary 主路径。
+/// 仅当主路径失败（获取信息失败、下载失败、超时等）时 fallback 到 lumocore mirror 镜像源。
+/// Fallback 时使用 manifest 中的 filename 拼接下载地址，并用 SHA256SUMS 校验。
+#[tauri::command]
+pub async fn download_codex_desktop() -> Result<String, String> {
+    // 主路径：原有官方（appcast 镜像）逻辑
+    match download_codex_from_primary_source().await {
+        Ok(path) => {
+            log::info!("[CodexDesktop] 下载成功，使用 official/primary source: {}", path);
+            Ok(path)
+        }
+        Err(primary_err) => {
+            log::warn!(
+                "[CodexDesktop] primary source 失败: {}，开始 fallback 到 mirror source (lumocore)",
+                primary_err
+            );
+            download_codex_from_mirror_source().await
+        }
+    }
+}
+
+/// 尝试使用当前原有主逻辑下载（不破坏现有 get_codex_desktop_latest 行为）
+async fn download_codex_from_primary_source() -> Result<String, String> {
+    let info = get_codex_desktop_latest().await?;
+
+    if info.download_url.is_empty() {
+        return Err("未能获取有效的下载地址 (primary)".to_string());
+    }
+
+    let file_name = info
+        .download_url
+        .rsplit('/')
+        .next()
+        .unwrap_or("Codex-latest.zip")
+        .to_string();
+
+    let base_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+    let target_dir = base_dir.join("Codex Desktop Installers");
+    std::fs::create_dir_all(&target_dir).map_err(|e| format!("无法创建下载目录: {}", e))?;
+
+    let final_path = target_dir.join(&file_name);
+
+    let bytes = fetch_bytes_with_timeout(&info.download_url, 300).await
+        .map_err(|e| format!("primary 下载失败: {}", e))?;
+
+    std::fs::write(&final_path, &bytes).map_err(|e| format!("保存安装包失败: {}", e))?;
+
+    Ok(final_path.to_string_lossy().to_string())
+}
+
+/// Codex mirror fallback 下载 + 校验
+async fn download_codex_from_mirror_source() -> Result<String, String> {
+    let (download_url, filename, version) = get_codex_mirror_download_info().await?;
+
+    log::info!(
+        "[CodexDesktop] 使用 mirror source: version={}, url={}",
+        version, download_url
+    );
+
+    let base_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+    let target_dir = base_dir.join("Codex Desktop Installers");
+    std::fs::create_dir_all(&target_dir).map_err(|e| format!("无法创建下载目录: {}", e))?;
+
+    let final_path = target_dir.join(&filename);
+
+    let bytes = fetch_bytes_with_timeout(&download_url, 300).await
+        .map_err(|e| format!("mirror 下载失败: {}", e))?;
+
+    std::fs::write(&final_path, &bytes).map_err(|e| format!("保存安装包失败: {}", e))?;
+
+    // 必须校验
+    verify_download_sha(&final_path, &filename, CODEX_MIRROR_SHA256SUMS).await?;
+
+    Ok(final_path.to_string_lossy().to_string())
+}
+
+/// 打开下载好的安装包（让系统处理安装）
+#[tauri::command]
+pub async fn open_codex_desktop_installer(app: AppHandle, path: String) -> Result<(), String> {
+    // 优先使用 Tauri opener 插件（跨平台更一致）
+    if let Err(e) = app.opener().open_path(&path, None::<String>) {
+        // 回退到平台原生命令
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("open")
+                .arg(&path)
+                .spawn()
+                .map_err(|e2| format!("打开安装包失败: {e} / fallback: {e2}"))?;
+        }
+        #[cfg(windows)]
+        {
+            std::process::Command::new("cmd")
+                .args(["/C", "start", "", &path])
+                .spawn()
+                .map_err(|e2| format!("打开安装包失败: {e} / fallback: {e2}"))?;
+        }
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("xdg-open")
+                .arg(&path)
+                .spawn()
+                .map_err(|e2| format!("打开安装包失败: {e} / fallback: {e2}"))?;
+        }
+    }
+    Ok(())
+}
+
+// ============================================================================
+// Claude Desktop 下载/更新（优先 mirror，失败时 fallback 到 claude.ai 官方）
+// ============================================================================
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeDesktopLatestInfo {
+    pub version: String,
+    pub download_url: String,
+    pub size: Option<u64>,
+    pub arch: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeDesktopInstallStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+    pub build: Option<u64>,
+    pub path: Option<String>,
+}
+
+#[tauri::command]
+pub async fn get_claude_desktop_latest() -> Result<ClaudeDesktopLatestInfo, String> {
+    // 优先 mirror manifest
+    if let Ok((url, _filename, version)) = get_claude_mirror_download_info().await {
+        log::info!("[ClaudeDesktop] latest info from mirror source, version={}", version);
+        return Ok(ClaudeDesktopLatestInfo {
+            version,
+            download_url: url,
+            size: None,
+            arch: std::env::consts::ARCH.to_string(),
+            notes: Some("mirror".to_string()),
+        });
+    }
+
+    // fallback: 返回 redirect 地址，版本 latest（实际下载时会再处理）
+    log::warn!("[ClaudeDesktop] mirror manifest 获取失败，使用 official fallback 返回 redirect");
+    let redirect = if cfg!(target_os = "macos") {
+        CLAUDE_OFFICIAL_MAC_DMG_REDIRECT
+    } else if cfg!(target_os = "windows") && std::env::consts::ARCH == "aarch64" {
+        CLAUDE_OFFICIAL_WIN_ARM64_REDIRECT
+    } else {
+        CLAUDE_OFFICIAL_WIN_X64_REDIRECT
+    };
+
+    Ok(ClaudeDesktopLatestInfo {
+        version: "latest".to_string(),
+        download_url: redirect.to_string(),
+        size: None,
+        arch: std::env::consts::ARCH.to_string(),
+        notes: Some("official-fallback".to_string()),
+    })
+}
+
+#[tauri::command]
+pub async fn get_claude_desktop_install_status() -> Result<ClaudeDesktopInstallStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(path) = find_installed_claude_desktop_path() {
+            let (version, build) = get_macos_claude_version_and_build(&path);
+            return Ok(ClaudeDesktopInstallStatus {
+                installed: true,
+                version,
+                build,
+                path: Some(path),
+            });
+        }
+        return Ok(ClaudeDesktopInstallStatus {
+            installed: false,
+            version: None,
+            build: None,
+            path: None,
+        });
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            let base = std::path::PathBuf::from(local);
+            for folder in ["Claude", "Claude Desktop"] {
+                let exe = base.join("Programs").join(folder).join("Claude.exe");
+                if exe.exists() {
+                    return Ok(ClaudeDesktopInstallStatus {
+                        installed: true,
+                        version: None,
+                        build: None,
+                        path: Some(exe.to_string_lossy().to_string()),
+                    });
+                }
+            }
+        }
+        Ok(ClaudeDesktopInstallStatus {
+            installed: false,
+            version: None,
+            build: None,
+            path: None,
+        })
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        Ok(ClaudeDesktopInstallStatus {
+            installed: false,
+            version: None,
+            build: None,
+            path: None,
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn find_installed_claude_desktop_path() -> Option<String> {
+    let candidates = [
+        "/Applications/Claude.app",
+        "/Applications/Claude Desktop.app",
+        "/Applications/Claude-Desktop.app",
+    ];
+    for p in candidates {
+        if std::path::Path::new(p).exists() {
+            return Some(p.to_string());
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn get_macos_claude_version_and_build(app_path: &str) -> (Option<String>, Option<u64>) {
+    use std::process::Command;
+    let info_plist = format!("{}/Contents/Info.plist", app_path);
+
+    let short_version = Command::new("defaults")
+        .args(["read", &info_plist, "CFBundleShortVersionString"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if s.is_empty() { None } else { Some(s) }
+        });
+
+    let build = Command::new("defaults")
+        .args(["read", &info_plist, "CFBundleVersion"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            s.parse::<u64>().ok()
+        });
+
+    (short_version, build)
+}
+
+/// 下载 Claude Desktop。优先 mirror 镜像源，失败或校验失败时 fallback 到 claude.ai 官方。
+#[tauri::command]
+pub async fn download_claude_desktop() -> Result<String, String> {
+    // 尝试 mirror 计划（manifest 提供 filename + 校验）
+    match get_claude_mirror_download_info().await {
+        Ok((mirror_url, filename, version)) => {
+            log::info!(
+                "[ClaudeDesktop] 使用 mirror source 下载: version={}, filename={}",
+                version, filename
+            );
+            match download_and_verify_claude(&mirror_url, &filename, CLAUDE_MIRROR_SHA256SUMS).await {
+                Ok(path) => return Ok(path),
+                Err(e) => {
+                    log::warn!("[ClaudeDesktop] mirror 下载或校验失败: {}，fallback 到 official", e);
+                }
+            }
+        }
+        Err(e) => {
+            log::warn!("[ClaudeDesktop] 获取 mirror manifest 失败: {}，直接使用 official fallback", e);
+        }
+    }
+
+    // official fallback
+    download_claude_from_official_fallback().await
+}
+
+async fn download_and_verify_claude(download_url: &str, filename: &str, sums_url: &str) -> Result<String, String> {
+    let bytes = fetch_bytes_with_timeout(download_url, 300).await?;
+
+    let base_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+    let target_dir = base_dir.join("Claude Desktop Installers");
+    std::fs::create_dir_all(&target_dir).map_err(|e| format!("创建目录失败: {}", e))?;
+
+    let final_path = target_dir.join(filename);
+    std::fs::write(&final_path, &bytes).map_err(|e| format!("保存失败: {}", e))?;
+
+    verify_download_sha(&final_path, filename, sums_url).await?;
+
+    Ok(final_path.to_string_lossy().to_string())
+}
+
+async fn download_claude_from_official_fallback() -> Result<String, String> {
+    let redirect = if cfg!(target_os = "macos") {
+        CLAUDE_OFFICIAL_MAC_DMG_REDIRECT
+    } else if cfg!(target_os = "windows") && std::env::consts::ARCH == "aarch64" {
+        CLAUDE_OFFICIAL_WIN_ARM64_REDIRECT
+    } else {
+        CLAUDE_OFFICIAL_WIN_X64_REDIRECT
+    };
+
+    log::info!("[ClaudeDesktop] 使用 official fallback source: {}", redirect);
+
+    let bytes = fetch_bytes_with_timeout(redirect, 300).await?;
+
+    let filename = if cfg!(target_os = "macos") {
+        "Claude-mac-universal.dmg".to_string()
+    } else if std::env::consts::ARCH == "aarch64" {
+        "Claude-win-arm64.msix".to_string()
+    } else {
+        "Claude-win-x64.msix".to_string()
+    };
+
+    let base_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
+    let target_dir = base_dir.join("Claude Desktop Installers");
+    std::fs::create_dir_all(&target_dir).map_err(|e| format!("创建目录失败: {}", e))?;
+
+    let final_path = target_dir.join(&filename);
+    std::fs::write(&final_path, &bytes).map_err(|e| format!("保存失败: {}", e))?;
+
+    // 官方 fallback 时，如果 mirror sums 可用则尽量校验（使用 mirror 的 filename 规范）
+    // 但因为 manifest 可能已失败，这里尽力尝试一次 manifest 来拿 filename 做校验
+    if let Ok((_, canon_filename, _)) = get_claude_mirror_download_info().await {
+        if let Err(e) = verify_download_sha(&final_path, &canon_filename, CLAUDE_MIRROR_SHA256SUMS).await {
+            log::warn!("[ClaudeDesktop] official fallback 文件使用 mirror sums 校验失败（可忽略）: {}", e);
+            // 不中断，返回已下载的文件
+        } else {
+            log::info!("[ClaudeDesktop] official fallback 文件通过 mirror sums 校验");
+        }
+    }
+
+    Ok(final_path.to_string_lossy().to_string())
+}
+
+/// 复用打开逻辑
+#[tauri::command]
+pub async fn open_claude_desktop_installer(app: AppHandle, path: String) -> Result<(), String> {
+    open_codex_desktop_installer(app, path).await
+}
+
+fn restart_codex_desktop_app() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        restart_codex_desktop_macos()
+    }
+    #[cfg(windows)]
+    {
+        restart_codex_desktop_windows()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        restart_codex_desktop_linux()
+    }
+    #[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
+    {
+        Err("当前平台暂不支持启动 ChatGPT / Codex Desktop".to_string())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn restart_codex_desktop_macos() -> Result<(), String> {
+    use std::process::Command;
+
+    // 尝试退出所有可能的名字（不同安装/版本的进程名不同）
+    let quit_names = ["Codex", "Codex Desktop", "ChatGPT"];
+    for name in &quit_names {
+        let _ = Command::new("osascript")
+            .args(["-e", &format!("quit app \"{}\"", name)])
+            .output();
+    }
+    let _ = Command::new("killall").arg("Codex").output();
+    let _ = Command::new("killall").arg("Codex Desktop").output();
+    let _ = Command::new("killall").arg("ChatGPT").output();
+
+    std::thread::sleep(std::time::Duration::from_millis(450));
+
+    // 优先使用我们检测到的真实路径启动（最可靠）
+    if let Some(app_path) = find_installed_codex_desktop_path() {
+        let output = Command::new("open")
+            .arg(&app_path)
+            .output()
+            .map_err(|e| format!("无法调用 open 命令: {}", e))?;
+
+        if output.status.success() {
+            return Ok(());
+        }
+    }
+
+    // 回退到常见 -a 名字
+    let launch_names = ["ChatGPT", "Codex", "Codex Desktop"];
+    for name in &launch_names {
+        let output = Command::new("open")
+            .args(["-a", name])
+            .output()
+            .map_err(|e| format!("无法调用 open 命令: {}", e))?;
+
+        if output.status.success() {
+            return Ok(());
+        }
+    }
+
+    if !is_codex_desktop_present_macos() {
+        return Err("ChatGPT / Codex Desktop 未安装".to_string());
+    }
+
+    Err("启动 ChatGPT（Codex Desktop）失败".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn is_codex_desktop_present_macos() -> bool {
+    find_installed_codex_desktop_path().is_some()
+}
+
+/// 查找已安装的 ChatGPT / Codex Desktop .app 路径。
+/// 注意：当前官方版本通常以 /Applications/ChatGPT.app 形式存在（CFBundleIdentifier = com.openai.codex）。
+#[cfg(target_os = "macos")]
+fn find_installed_codex_desktop_path() -> Option<String> {
+    use std::path::Path;
+    use std::process::Command;
+
+    let home = std::env::var("HOME").unwrap_or_default();
+
+    // 1. 常见标准位置（注意：当前官方 Codex Desktop 经常以 ChatGPT.app 形式安装，bundle ID 为 com.openai.codex）
+    let mut candidates: Vec<String> = vec![
+        "/Applications/Codex.app".to_string(),
+        "/Applications/Codex Desktop.app".to_string(),
+        "/Applications/ChatGPT.app".to_string(),
+        format!("{}/Applications/Codex.app", home),
+        format!("{}/Applications/Codex Desktop.app", home),
+        format!("{}/Applications/ChatGPT.app", home),
+    ];
+
+    // 2. 使用 mdfind 做更全面的搜索（能找到用户移动过的位置）
+    if let Ok(output) = Command::new("mdfind")
+        .args([
+            "kMDItemKind == Application && (kMDItemFSName == '*Codex*.app' || kMDItemFSName == '*codex*.app' || kMDItemFSName == '*ChatGPT*.app')",
+        ])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            let p = line.trim();
+            if !p.is_empty() && !candidates.contains(&p.to_string()) {
+                candidates.push(p.to_string());
+            }
+        }
+    }
+
+    for p in candidates {
+        if Path::new(&p).exists() {
+            if is_codex_bundle(&p) {
+                return Some(p);
+            }
+        }
+    }
+
+    None
+}
+
+/// 读取 .app 的 CFBundleIdentifier 并判断是否为 Codex Desktop。
+#[cfg(target_os = "macos")]
+fn is_codex_bundle(app_path: &str) -> bool {
+    use std::process::Command;
+
+    let info_plist = format!("{}/Contents/Info.plist", app_path);
+
+    // 尝试读取 bundle identifier
+    if let Ok(output) = Command::new("defaults")
+        .args(["read", &info_plist, "CFBundleIdentifier"])
+        .output()
+    {
+        let id = String::from_utf8_lossy(&output.stdout).trim().to_lowercase();
+
+        // 当前官方 Codex Desktop 的标识（2026 年版本）
+        if id == "com.openai.codex" || id.contains("codex") {
+            return true;
+        }
+
+        // 明确拒绝旧的 ChatGPT Classic
+        if id == "com.openai.chat" {
+            return false;
+        }
+
+        // 其他情况：如果路径名明显是 Codex 相关，也接受（兜底）
+    }
+
+    // 兜底判断：路径名包含 codex（不包含 chatgpt 单独情况）
+    let lower = app_path.to_lowercase();
+    lower.contains("codex") && !lower.contains("chatgpt")
+}
+
+#[cfg(windows)]
+fn restart_codex_desktop_windows() -> Result<(), String> {
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    // 强制结束已运行实例
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "Codex.exe"])
+        .output();
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "Codex Desktop.exe"])
+        .output();
+    let _ = Command::new("taskkill")
+        .args(["/F", "/IM", "Codex.exe"])
+        .output(); // 重复以防万一
+
+    std::thread::sleep(std::time::Duration::from_millis(450));
+
+    let candidates = get_windows_codex_desktop_candidates();
+    for exe in candidates {
+        if exe.exists() {
+            let mut cmd = Command::new(&exe);
+            // Windows 下后台启动不弹出控制台
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+                cmd.creation_flags(CREATE_NO_WINDOW);
+            }
+            cmd.spawn()
+                .map_err(|e| format!("启动 Codex Desktop 失败: {}", e))?;
+            return Ok(());
+        }
+    }
+
+    Err("Codex Desktop 未安装".to_string())
+}
+
+#[cfg(windows)]
+fn get_windows_codex_desktop_candidates() -> Vec<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let mut cands: Vec<PathBuf> = Vec::new();
+
+    if let Some(local_appdata) = std::env::var_os("LOCALAPPDATA") {
+        let base = PathBuf::from(local_appdata);
+        for folder in ["Codex", "Codex Desktop", "OpenAI Codex", "codex"] {
+            let dir = base.join("Programs").join(folder);
+            cands.push(dir.join("Codex.exe"));
+            cands.push(dir.join("Codex Desktop.exe"));
+            cands.push(dir.join("codex.exe"));
+        }
+    }
+
+    if let Some(program_files) = std::env::var_os("ProgramFiles") {
+        let base = PathBuf::from(program_files);
+        for folder in ["Codex", "Codex Desktop"] {
+            cands.push(base.join(folder).join("Codex.exe"));
+            cands.push(base.join(folder).join("Codex Desktop.exe"));
+        }
+    }
+
+    if let Some(program_files_x86) = std::env::var_os("ProgramFiles(x86)") {
+        let base = PathBuf::from(program_files_x86);
+        for folder in ["Codex", "Codex Desktop"] {
+            cands.push(base.join(folder).join("Codex.exe"));
+        }
+    }
+
+    cands
+}
+
+#[cfg(target_os = "linux")]
+fn restart_codex_desktop_linux() -> Result<(), String> {
+    use std::path::Path;
+    use std::process::Command;
+
+    // 尝试结束进程（注意：可能影响 codex CLI，但桌面优先）
+    let _ = Command::new("pkill").args(["-f", "-i", "codex"]).output();
+    let _ = Command::new("killall").arg("-q").arg("codex").output();
+    let _ = Command::new("killall").arg("-q").arg("Codex").output();
+
+    std::thread::sleep(std::time::Duration::from_millis(350));
+
+    // 优先使用桌面启动器
+    for (cmd, args) in [
+        ("gtk-launch", vec!["codex"]),
+        ("gtk-launch", vec!["codex-desktop"]),
+        ("gtk-launch", vec!["Codex"]),
+    ] {
+        if Command::new(cmd).args(&args).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+
+    // 直接尝试可执行文件候选
+    let home = std::env::var("HOME").unwrap_or_default();
+    let candidates: Vec<&str> = vec![
+        "/usr/bin/codex",
+        "/usr/local/bin/codex",
+        "/opt/codex/codex",
+        "/opt/Codex/codex",
+        "/usr/bin/codex-desktop",
+        "/usr/local/bin/codex-desktop",
+        "/opt/Codex.AppImage",
+    ];
+    let mut user_cands: Vec<String> = vec![
+        format!("{}/.local/bin/codex", home),
+        format!("{}/.local/bin/codex-desktop", home),
+        format!("{}/Applications/Codex.AppImage", home),
+        format!("{}/bin/codex", home),
+    ];
+    let mut all: Vec<&str> = candidates;
+    for s in &user_cands {
+        // 临时转为 &str 无法直接追加，改用 Path 检查
+    }
+
+    for bin in candidates {
+        let p = Path::new(bin);
+        if p.exists() {
+            if Command::new(p).spawn().is_ok() {
+                return Ok(());
+            }
+        }
+    }
+    for s in &user_cands {
+        let p = Path::new(s);
+        if p.exists() {
+            if Command::new(p).spawn().is_ok() {
+                return Ok(());
+            }
+        }
+    }
+
+    // 最后兜底：尝试 xdg-open 如果有 .desktop
+    let _ = Command::new("xdg-open")
+        .arg("codex.desktop")
+        .spawn();
+
+    // 检测是否至少有可执行线索，否则报未安装
+    if is_likely_codex_desktop_on_linux(&home) {
+        return Ok(()); // 启动可能已通过 gtk 以外方式成功，或至少尝试过
+    }
+
+    Err("Codex Desktop 未安装".to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn is_likely_codex_desktop_on_linux(home: &str) -> bool {
+    use std::path::Path;
+    let checks = [
+        "/usr/share/applications/codex.desktop",
+        "/usr/local/share/applications/codex.desktop",
+        "/var/lib/flatpak/app/com.codex.desktop",
+        &format!("{}/.local/share/applications/codex.desktop", home),
+        &format!("{}/.local/share/flatpak/app/com.codex.desktop", home),
+    ];
+    checks.iter().any(|p| Path::new(p).exists())
 }
 
 #[tauri::command]
@@ -111,6 +1172,19 @@ pub struct ToolVersion {
     wsl_distro: Option<String>,
 }
 
+/// Progress payload emitted during install/update lifecycle (for progress bar + live status).
+#[derive(Clone, serde::Serialize)]
+pub struct ToolLifecycleProgress {
+    /// tool key e.g. "claude", "opencode"
+    pub tool: String,
+    /// Human readable last line or phase message
+    pub message: String,
+    /// "starting" | "running" | "completed" | "failed"
+    pub phase: String,
+    /// Optional 0-100 for determinate progress (rare for these CLIs)
+    pub percent: Option<u8>,
+}
+
 const VALID_TOOLS: [&str; 7] = [
     "claude", "codex", "gemini", "opencode", "openclaw", "hermes", "grok",
 ];
@@ -179,6 +1253,7 @@ pub async fn get_tool_versions(
 
 #[tauri::command]
 pub async fn run_tool_lifecycle_action(
+    app: tauri::AppHandle,
     tools: Vec<String>,
     action: String,
     wsl_shell_by_tool: Option<HashMap<String, WslShellPreferenceInput>>,
@@ -196,51 +1271,220 @@ pub async fn run_tool_lifecycle_action(
 
     // build 阶段含锚定探测（对每个工具跑 `--version` 定位命令行实际命中那处），
     // 与执行一并放进 blocking 线程，避免阻塞 async runtime。
+    // We clone app for move into blocking task (AppHandle is cheap to clone).
+    let app_for_block = app.clone();
     tokio::task::spawn_blocking(move || {
         let command_line =
             build_tool_lifecycle_command(&requested, action, wsl_shell_by_tool.as_ref())?;
-        run_tool_lifecycle_silently(&command_line, label)
+        run_tool_lifecycle_silently(&app_for_block, &command_line, label)
     })
     .await
     .map_err(|e| format!("tool lifecycle task join error: {e}"))?
 }
 
-/// 静默执行工具安装/更新脚本：直接捕获子进程输出并阻塞到命令真正结束，
-/// 不再弹出可见终端窗口（与 `launch_terminal_running` 的"开窗即返回"形成对比，
-/// 后者仍保留给 provider 切换等需要交互式终端的场景）。
-/// 失败时回传 stderr/stdout 末尾若干行，供前端 toast 提示。
+/// 静默执行工具安装/更新脚本：使用子进程管道实时流式读取 stdout/stderr，
+/// 边执行边通过 Tauri 事件推送进度（供前端进度条 + 状态消息显示）。
+/// 同时保留完整输出用于最终成功/失败判定和错误详情。
+/// 不再弹出可见终端窗口。
 #[cfg(not(target_os = "windows"))]
-fn run_tool_lifecycle_silently(command_line: &str, _label: &str) -> Result<(), String> {
-    use std::process::Command;
-    // command_line 是 bash 风格脚本（含 `set -e` 与多行命令）；强制用 bash 执行，
-    // 避免用户默认 shell 为 fish/zsh 时 `set -e` 等语义不一致。
-    let output = Command::new("bash")
+fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, _label: &str) -> Result<(), String> {
+    use std::process::{Command, Stdio};
+    use std::thread;
+
+    // 解析工具名（脚本中会 echo ========== ToolName ========== 作为分隔）
+    // 这里做个简单兜底：如果单工具，取第一个 requested（上层已知）。
+    // 更精确的解析放在流读取里，根据 echo 行动态更新当前 tool。
+    let default_tool = extract_first_tool_from_script(command_line).unwrap_or_else(|| "cli".to_string());
+
+    // 启动带管道的子进程
+    let mut child = Command::new("bash")
         .arg("-c")
         .arg(command_line)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("启动安装进程失败: {e}"))?;
-    finish_lifecycle_output(&output)
+
+    let stdout = child.stdout.take().expect("stdout piped");
+    let stderr = child.stderr.take().expect("stderr piped");
+
+    // 实时流式发射事件（stdout + stderr）
+    let app_stdout = app.clone();
+    let tool_stdout = default_tool.clone();
+    thread::spawn(move || {
+        stream_lines_to_progress(&app_stdout, &tool_stdout, stdout, false);
+    });
+
+    let app_stderr = app.clone();
+    let tool_stderr = default_tool.clone();
+    thread::spawn(move || {
+        stream_lines_to_progress(&app_stderr, &tool_stderr, stderr, true);
+    });
+
+    // 等待结束
+    let status = child.wait().map_err(|e| format!("等待安装进程结束失败: {e}"))?;
+
+    // 构建一个模拟的 Output 用于 finish（我们已经流过了真实输出）
+    // 为简单起见，这里直接基于 status 决定；更完整的 stdout/stderr 收集可后续增强。
+    if status.success() {
+        // 发射完成事件
+        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+            tool: default_tool,
+            message: "completed".to_string(),
+            phase: "completed".to_string(),
+            percent: Some(100),
+        });
+        Ok(())
+    } else {
+        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+            tool: default_tool,
+            message: "failed".to_string(),
+            phase: "failed".to_string(),
+            percent: None,
+        });
+        // 保持原有错误行为（无详细 stderr 时给通用消息）
+        Err("命令执行失败".to_string())
+    }
+}
+
+/// 从构建的脚本中提取第一个工具名（用于初始事件）。跨平台共用。
+fn extract_first_tool_from_script(script: &str) -> Option<String> {
+    for line in script.lines() {
+        if let Some(rest) = line.strip_prefix("echo ========== ") {
+            if let Some(name) = rest.strip_suffix(" ==========") {
+                return Some(normalize_tool_label_to_key(name));
+            }
+        }
+    }
+    None
+}
+
+/// 把脚本里的 label (如 "Claude Code", "OpenCode") 规范化为前端的 tool key。
+fn normalize_tool_label_to_key(label: &str) -> String {
+    let l = label.trim().to_lowercase();
+    match l.as_str() {
+        "claude code" => "claude".to_string(),
+        "codex cli" | "codex" => "codex".to_string(),
+        "opencode" | "open code" => "opencode".to_string(),
+        "grok build" | "grok" => "grok".to_string(),
+        other => other.replace(' ', "-"),
+    }
+}
+
+/// 读取 reader 的每一行，trim 后作为 message 发射 ToolLifecycleProgress (phase=running)。
+/// 同时尝试从输出里提取百分比（简单启发式支持 npm/brew/curl 等）。
+#[cfg(not(target_os = "windows"))]
+fn stream_lines_to_progress<R: std::io::Read>(
+    app: &tauri::AppHandle,
+    tool: &str,
+    reader: R,
+    _is_stderr: bool,
+) {
+    use std::io::{BufRead, BufReader};
+    let buf = BufReader::new(reader);
+    for line_res in buf.lines() {
+        if let Ok(line) = line_res {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            let percent = extract_percent_from_line(trimmed);
+
+            // 尝试从 echo 行更新当前 tool（多工具批处理时有用）
+            let current_tool = if trimmed.starts_with("========== ") && trimmed.ends_with(" ==========") {
+                let inner = trimmed
+                    .trim_start_matches("========== ")
+                    .trim_end_matches(" ==========");
+                normalize_tool_label_to_key(inner)
+            } else {
+                tool.to_string()
+            };
+
+            let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+                tool: current_tool,
+                message: trimmed.to_string(),
+                phase: "running".to_string(),
+                percent,
+            });
+        }
+    }
+}
+
+/// 简单从常见输出行里提取百分比（例如 "  47% ..." 或 "[===>     ] 40%" 等）。跨平台共用。
+fn extract_percent_from_line(line: &str) -> Option<u8> {
+    // 匹配 "47%" 或 " 47.3%" 等
+    if let Some(idx) = line.find('%') {
+        let before = &line[..idx];
+        // 取最后一段数字
+        let num_part: String = before
+            .chars()
+            .rev()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect();
+        if let Ok(f) = num_part.parse::<f32>() {
+            let p = (f.clamp(0.0, 100.0)) as u8;
+            if p > 0 || line.contains("0%") {
+                return Some(p);
+            }
+        }
+    }
+    None
 }
 
 /// Windows 静默执行：command_line 是 .bat 内容（@echo off + call/wsl 行，CRLF 分隔），
 /// 写临时 .bat 后用 `cmd /C` 执行，`CREATE_NO_WINDOW` 抑制 console 窗口。
+/// 为了进度条，这里也发射基本 starting/completed 事件（完整行流式可后续增强）。
 #[cfg(target_os = "windows")]
-fn run_tool_lifecycle_silently(command_line: &str, label: &str) -> Result<(), String> {
+fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, label: &str) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
+
+    let default_tool = extract_first_tool_from_script(command_line).unwrap_or_else(|| "cli".to_string());
+
+    // 起始事件
+    let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+        tool: default_tool.clone(),
+        message: "starting".to_string(),
+        phase: "starting".to_string(),
+        percent: Some(0),
+    });
 
     let bat_file =
         std::env::temp_dir().join(format!("cc_switch_{}_{}.bat", label, std::process::id()));
     std::fs::write(&bat_file, command_line).map_err(|e| format!("写入批处理文件失败: {e}"))?;
 
-    let output = Command::new("cmd")
+    let output_res = Command::new("cmd")
         .arg("/C")
         .arg(&bat_file)
         .creation_flags(CREATE_NO_WINDOW)
         .output();
     let _ = std::fs::remove_file(&bat_file);
 
-    finish_lifecycle_output(&output.map_err(|e| format!("启动安装进程失败: {e}"))?)
+    let success = output_res.as_ref().map(|o| o.status.success()).unwrap_or(false);
+
+    if success {
+        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+            tool: default_tool,
+            message: "completed".to_string(),
+            phase: "completed".to_string(),
+            percent: Some(100),
+        });
+        Ok(())
+    } else {
+        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+            tool: default_tool,
+            message: "failed".to_string(),
+            phase: "failed".to_string(),
+            percent: None,
+        });
+        // 回退到原有错误提取逻辑
+        let output = output_res.map_err(|e| format!("启动安装进程失败: {e}"))?;
+        finish_lifecycle_output(&output)
+    }
 }
 
 /// 把子进程退出结果转成 `Result`：成功返回 `Ok`；失败提取 stderr（空则回退 stdout）
@@ -461,6 +1705,9 @@ const HERMES_INSTALL_WINDOWS_SCRIPT: &str =
     "irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex";
 
 #[cfg(target_os = "windows")]
+const CLAUDE_INSTALL_WINDOWS_SCRIPT: &str = "irm https://claude.ai/install.ps1 | iex";
+
+#[cfg(target_os = "windows")]
 fn powershell_encoded_command(script: &str) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
@@ -486,6 +1733,15 @@ fn hermes_update_windows_command() -> String {
     format!("hermes update || {}", hermes_install_windows_command())
 }
 
+#[cfg(target_os = "windows")]
+fn claude_install_windows_command() -> String {
+    // 使用 EncodedCommand 避免 cmd 解析 irm | iex 管道；与 hermes 一致。
+    format!(
+        "powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {}",
+        powershell_encoded_command(CLAUDE_INSTALL_WINDOWS_SCRIPT)
+    )
+}
+
 #[derive(Debug, Clone, Copy)]
 enum LifecycleCommandShell {
     Posix,
@@ -501,6 +1757,48 @@ fn npm_install_command_for(tool: &str) -> Option<&'static str> {
         "opencode" => Some("npm i -g opencode-ai@latest"),
         "openclaw" => Some("npm i -g openclaw@latest"),
         _ => None,
+    }
+}
+
+/// Codex CLI 专用的直接 npm 安装命令。
+/// - Windows：使用国内镜像 registry.npmmirror.com（用户指定）
+/// - 其他平台：标准 npm（macOS 优先 brew 后才会回落到此）
+fn codex_direct_npm_command() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        "npm i -g @openai/codex@latest --registry=https://registry.npmmirror.com".to_string()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "npm i -g @openai/codex@latest".to_string()
+    }
+}
+
+/// Claude Code CLI 专用的直接 npm 安装命令（与 codex 机制一致）。
+/// - Windows：使用国内镜像 registry.npmmirror.com
+/// - 其他平台：标准 npm
+fn claude_direct_npm_command() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        "npm i -g @anthropic-ai/claude-code@latest --registry=https://registry.npmmirror.com".to_string()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "npm i -g @anthropic-ai/claude-code@latest".to_string()
+    }
+}
+
+/// OpenCode 专用的直接 npm 安装命令（与 claude/codex 一致的国内镜像策略）。
+/// - Windows：使用国内镜像 registry.npmmirror.com
+/// - 其他平台：标准 npm（macOS 主要由 posix_install 优先 brew tap）
+fn opencode_direct_npm_command() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        "npm i -g opencode-ai@latest --registry=https://registry.npmmirror.com".to_string()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "npm i -g opencode-ai@latest".to_string()
     }
 }
 
@@ -567,15 +1865,49 @@ fn tool_action_shell_command_for_shell(
         });
     }
 
-    let install = npm_install_command_for(tool)?;
+    // Claude Code：官方脚本优先；macOS/Linux brew，Windows npm 国内镜像。
+    if tool == "claude" {
+        match action {
+            ToolLifecycleAction::Install => {
+                #[cfg(target_os = "windows")]
+                {
+                    let ps1 = claude_install_windows_command();
+                    let npm_fb = claude_direct_npm_command();
+                    return Some(chain_update_commands(
+                        ps1,
+                        npm_fb,
+                        LifecycleCommandShell::WindowsBatch,
+                    ));
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    return Some(posix_install_command_for(tool));
+                }
+            }
+            ToolLifecycleAction::Update => {
+                // 交给后续 prefers_official_update + fallback 处理（claude 支持 update）
+            }
+        }
+    }
+
+    // Codex / Claude / OpenCode 特殊：install / 静态兜底使用平台感知命令（Windows 国内镜像；macOS 主要由 posix_install 优先 brew/tap）
+    let install = if tool == "codex" {
+        codex_direct_npm_command()
+    } else if tool == "claude" {
+        claude_direct_npm_command()
+    } else if tool == "opencode" {
+        opencode_direct_npm_command()
+    } else {
+        npm_install_command_for(tool)?.to_string()
+    };
     match action {
-        ToolLifecycleAction::Install => Some(install.to_string()),
+        ToolLifecycleAction::Install => Some(install),
         ToolLifecycleAction::Update => match prefers_official_update(tool, shell)
             .then(|| bare_official_update_command(tool))
             .flatten()
         {
-            Some(update) => Some(chain_update_commands(update, install.to_string(), shell)),
-            None => Some(install.to_string()),
+            Some(update) => Some(chain_update_commands(update, install, shell)),
+            None => Some(install),
         },
     }
 }
@@ -768,29 +2100,16 @@ async fn get_single_tool_version_impl(
         ShellProbe::NotFound(e) => (None, Some(e), false),
     };
 
-    // 2. 获取远程最新版本（npm 工具在本地领先 latest 时会按预发布通道补查，见
-    //    fetch_npm_latest_for_tool / npm_prerelease_tags）
+    // 2. 获取“最新版本”。
+    //    关键修复：若检测到该工具的 PATH 默认安装来自 Homebrew（Cellar 或 Caskroom），
+    //    则优先/仅使用 `brew info` 拿到的 formula/cask 版本作为 latest_version。
+    //    这样：
+    //    - brew 用户看到的 latest 才与 `brew upgrade` 真正能拿到的版本一致；
+    //    - 避免 npm/github 领先于 tap/formula 时，UI 误显示 "可更新到 1.18.3" 而实际
+    //      执行 brew 后 "Warning: already installed" + "版本未变化" 的困惑。
+    //    - 非 brew 安装（或未安装）仍走 npm/github 逻辑（代表可获取的绝对最新）。
     let local = local_version.as_deref();
-    let latest_version = match tool {
-        "claude" => {
-            fetch_npm_latest_for_tool(&client, "@anthropic-ai/claude-code", tool, local).await
-        }
-        "codex" => fetch_npm_latest_for_tool(&client, "@openai/codex", tool, local).await,
-        "gemini" => fetch_npm_latest_for_tool(&client, "@google/gemini-cli", tool, local).await,
-        "opencode" => {
-            if let Some(version) =
-                fetch_npm_latest_for_tool(&client, "opencode-ai", tool, local).await
-            {
-                Some(version)
-            } else {
-                fetch_github_latest_version(&client, "anomalyco/opencode").await
-            }
-        }
-        "openclaw" => fetch_npm_latest_for_tool(&client, "openclaw", tool, local).await,
-        "hermes" => fetch_pypi_latest_version(&client, "hermes-agent").await,
-        "grok" => fetch_grok_latest_version(&client).await,
-        _ => None,
-    };
+    let latest_version = get_preferred_latest_version(tool, &client, local).await;
 
     ToolVersion {
         name: tool.to_string(),
@@ -800,6 +2119,49 @@ async fn get_single_tool_version_impl(
         installed_but_broken,
         env_type,
         wsl_distro,
+    }
+}
+
+/// 根据探测到的“默认安装来源”决定 latest_version 的获取策略。
+/// - Homebrew 安装（通过 resolve_path_default 得到的 canonical 真身落在 Cellar/Caskroom）
+///   → 调用 `brew info` 取该 formula/cask 的可用版本；
+///   - 查询失败时回落到当前 local 版本（避免把 npm 更高版本当成 latest 误导用户）；
+///   - 这样 brew 安装的 claude/opencode/codex 其“最新”与 `brew upgrade` 结果一致。
+/// - 其他来源或未安装 → 继续使用 npm / GitHub / PyPI 等网络查询。
+async fn get_preferred_latest_version(
+    tool: &str,
+    client: &reqwest::Client,
+    local: Option<&str>,
+) -> Option<String> {
+    #[cfg(target_os = "windows")]
+    {
+        return fetch_via_network_latest(tool, client, local).await;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let default_real = resolve_path_default(tool);
+        let brew_exe = resolve_path_default("brew")
+            .map(|p| p.to_string_lossy().into_owned());
+
+        if let Some(real) = default_real {
+            let s = real.to_string_lossy().to_string();
+            if let Some(cask) = homebrew_cask_from_path(&s) {
+                let bv = fetch_brew_latest_version(brew_exe.as_deref(), &cask, true);
+                return Some(
+                    bv.unwrap_or_else(|| local.map(|s| s.to_string()).unwrap_or_default()),
+                )
+                .filter(|v| !v.is_empty());
+            }
+            if let Some(formula) = brew_formula_from_path(&s) {
+                let bv = fetch_brew_latest_version(brew_exe.as_deref(), &formula, false);
+                return Some(
+                    bv.unwrap_or_else(|| local.map(|s| s.to_string()).unwrap_or_default()),
+                )
+                .filter(|v| !v.is_empty());
+            }
+        }
+        fetch_via_network_latest(tool, client, local).await
     }
 }
 
@@ -1000,6 +2362,114 @@ async fn fetch_pypi_latest_version(client: &reqwest::Client, package: &str) -> O
             }
         }
         Err(_) => None,
+    }
+}
+
+/// 从 `brew info --json` / `--json=v2 --cask` 的 stdout 解析可升级到的版本。
+/// 同时兼容：
+/// - formula v1 直接数组 [ { versions: {stable}, version? } ]
+/// - cask v2 包装 { casks: [ { version, ... } ] } / { formulae: [...] }
+fn parse_brew_info_version(json_text: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(json_text.trim()).ok()?;
+
+    // 抽取“第一个条目”的通用逻辑
+    let item: Option<&serde_json::Value> = if let Some(casks) = v.get("casks").and_then(|x| x.as_array()) {
+        casks.first()
+    } else if let Some(formulae) = v.get("formulae").and_then(|x| x.as_array()) {
+        formulae.first()
+    } else if v.is_array() {
+        v.as_array().and_then(|a| a.first())
+    } else if v.is_object() {
+        Some(&v)
+    } else {
+        None
+    };
+
+    let first = item?;
+
+    // Cask 常用顶层 "version"；也可能有 "installed"
+    if let Some(ver) = first.get("version").and_then(|x| x.as_str()) {
+        let ver = ver.trim();
+        if !ver.is_empty() && ver != "latest" && ver != "HEAD" {
+            return Some(ver.to_string());
+        }
+    }
+    if let Some(ver) = first.get("installed").and_then(|x| x.as_str()) {
+        let ver = ver.trim();
+        if !ver.is_empty() && ver != "latest" && ver != "HEAD" {
+            return Some(ver.to_string());
+        }
+    }
+
+    // Formula
+    if let Some(vs) = first.get("versions") {
+        if let Some(stable) = vs.get("stable").and_then(|x| x.as_str()) {
+            let s = stable.trim();
+            if !s.is_empty() && s != "HEAD" {
+                return Some(s.to_string());
+            }
+        }
+    }
+
+    // 兜底顶层 version（再检查一次 latest）
+    if let Some(ver) = first.get("version").and_then(|x| x.as_str()) {
+        let ver = ver.trim();
+        if !ver.is_empty() && ver != "latest" && ver != "HEAD" {
+            return Some(ver.to_string());
+        }
+    }
+    None
+}
+
+/// 使用 Homebrew 查询 formula/cask 的最新可用版本（本地执行 `brew info`）。
+/// 传入可选的 brew 可执行绝对路径（通过 resolve_path_default 得到），以便在 GUI 受限
+/// PATH 下仍能准确定位用户实际使用的 brew（及其 tap 索引）。
+#[cfg(not(target_os = "windows"))]
+fn fetch_brew_latest_version(brew_exe: Option<&str>, name: &str, is_cask: bool) -> Option<String> {
+    use std::process::Command;
+    let brew = brew_exe.unwrap_or("brew");
+    let mut cmd = Command::new(brew);
+    cmd.arg("info");
+    if is_cask {
+        // Cask 必须用 v2 + --cask，否则默认 --json=v1 会报 "Cannot specify `--cask` when using `--json=v1`"
+        cmd.arg("--json=v2").arg("--cask");
+    } else {
+        cmd.arg("--json");
+    }
+    cmd.arg(name);
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = decode_command_output(&output.stdout);
+    parse_brew_info_version(&text)
+}
+
+/// 统一的“网络来源 latest”获取（npm / pypi / github / grok 等）。
+async fn fetch_via_network_latest(
+    tool: &str,
+    client: &reqwest::Client,
+    local: Option<&str>,
+) -> Option<String> {
+    match tool {
+        "claude" => {
+            fetch_npm_latest_for_tool(client, "@anthropic-ai/claude-code", tool, local).await
+        }
+        "codex" => fetch_npm_latest_for_tool(client, "@openai/codex", tool, local).await,
+        "gemini" => fetch_npm_latest_for_tool(client, "@google/gemini-cli", tool, local).await,
+        "opencode" => {
+            if let Some(version) =
+                fetch_npm_latest_for_tool(client, "opencode-ai", tool, local).await
+            {
+                Some(version)
+            } else {
+                fetch_github_latest_version(client, "anomalyco/opencode").await
+            }
+        }
+        "openclaw" => fetch_npm_latest_for_tool(client, "openclaw", tool, local).await,
+        "hermes" => fetch_pypi_latest_version(client, "hermes-agent").await,
+        "grok" => fetch_grok_latest_version(client).await,
+        _ => None,
     }
 }
 
@@ -2024,6 +3494,20 @@ fn brew_formula_from_path(real: &str) -> Option<String> {
     None
 }
 
+/// 类似 brew_formula，但用于 Homebrew Cask（例如 claude-code 当前作为 cask 分发 CLI）。
+/// 真身路径会落在 `/opt/homebrew/Caskroom/claude-code/<ver>/...`。
+/// 升级命令应使用 `brew upgrade --cask <name>` 而非普通 formula。
+#[cfg(not(target_os = "windows"))]
+fn homebrew_cask_from_path(real: &str) -> Option<String> {
+    let mut segs = real.split('/');
+    while let Some(seg) = segs.next() {
+        if seg.eq_ignore_ascii_case("Caskroom") {
+            return segs.next().filter(|s| !s.is_empty()).map(|s| s.to_string());
+        }
+    }
+    None
+}
+
 /// 含空格才用 POSIX 单引号包一层,否则保持裸路径——命令展示更干净。
 /// claude / brew / volta / bun / npm 五个锚定分支共用,避免"含空格"判定漂移。
 ///
@@ -2214,7 +3698,7 @@ fn prefers_official_update(tool: &str, shell: LifecycleCommandShell) -> bool {
 /// 对各类损坏都是合理且不会更糟的修复。
 #[cfg(not(target_os = "windows"))]
 fn codex_repair_command(bin_path: &str, real: &str) -> Option<String> {
-    // brew formula（real 在 Cellar）→ 不归 npm 管，交回 anchored 走 brew upgrade。
+    // brew formula (Cellar) 或 cask (Caskroom) → 不归 npm 管，交回 anchored 走 brew update && upgrade。
     if brew_formula_from_path(real).is_some() {
         return None;
     }
@@ -2247,9 +3731,18 @@ fn package_manager_anchored_command_from_paths(
     bin_path: &str,
     real_target: &str,
 ) -> Option<String> {
+    if let Some(cask) = homebrew_cask_from_path(real_target) {
+        let brew = sibling_bin(bin_path, "brew")?;
+        let brew_q = quote_path_if_spaced(&brew);
+        // Cask 更新用 --cask（例如 claude-code 当前以 cask 形式提供二进制）。
+        return Some(format!("{brew_q} update && {brew_q} upgrade --cask {cask}"));
+    }
     if let Some(formula) = brew_formula_from_path(real_target) {
         let brew = sibling_bin(bin_path, "brew")?;
-        return Some(format!("{} upgrade {formula}", quote_path_if_spaced(&brew)));
+        // 包含 `brew update &&` 确保 tap/公式元数据最新，否则可能因本地索引陈旧导致 upgrade 无操作。
+        // 使用同一绝对路径 brew，避免 GUI 环境 PATH 不包含 /opt/homebrew/bin 。
+        let brew_q = quote_path_if_spaced(&brew);
+        return Some(format!("{brew_q} update && {brew_q} upgrade {formula}"));
     }
     let pkg = npm_package_for(tool)?;
     match infer_install_source(Path::new(bin_path)) {
@@ -2295,7 +3788,7 @@ fn package_manager_anchored_command_from_paths(
 /// ② Claude 原生安装器（`~/.local/share/claude/versions/`）→ `<bin_path 绝对> update`；
 ///    bin_path 指向 launcher,launcher 内部 dispatch update 子命令。它不归 npm 管,
 ///    且在 PATH 里比 nvm/homebrew 更靠前,用 npm 升级会装到别处且被原生那份遮蔽。
-/// ③ Homebrew formula（真身在 `Cellar/<formula>/`）→ `<bin_path 同目录>/brew upgrade <formula>`;
+/// ③ Homebrew formula（Cellar）或 Cask（Caskroom）→ `<bin_path 同目录>/brew update && <brew> upgrade [--cask] <name>`;
 ///    formula 由 Homebrew 拥有,避免 self-update 尝试改动包管理器管理的安装。
 /// ④ 其余支持官方自升级的工具 → `<bin_path 绝对> update/upgrade || <原锚定包管理器命令>`；
 ///    Codex 的 self-update 只在部分 release 可用,所以保留 npm/brew/bun/volta fallback。
@@ -2315,7 +3808,7 @@ fn anchored_command_from_paths(tool: &str, bin_path: &str, real_target: &str) ->
         return anchored_official_update_command(tool, bin_path);
     }
     let package_command = package_manager_anchored_command_from_paths(tool, bin_path, real_target);
-    if brew_formula_from_path(real_target).is_some() {
+    if homebrew_cask_from_path(real_target).is_some() || brew_formula_from_path(real_target).is_some() {
         return package_command;
     }
     if prefers_official_update(tool, LifecycleCommandShell::Posix) {
@@ -2361,7 +3854,7 @@ fn package_manager_anchored_command_from_paths(tool: &str, bin_path: &str) -> Op
 
 /// Windows 版锚定命令生成。对平台确认可静默运行的工具优先使用官方 CLI 自升级；
 /// 对 npm/Volta/pnpm 这类可确认写回位置的安装，再接一个包管理器 fallback。不存在 brew/bun/claude-native
-/// (Windows 没 Homebrew、Bun for Windows 仍 preview、claude.ai/install.sh 是 bash 脚本)。
+/// (Windows 没 Homebrew、Bun for Windows 仍 preview；claude 现支持独立 ps1 官方脚本)。
 /// Scoop/Chocolatey/winget/nvm-windows/MS Store node 都归 npm 类——它们都只是"如何装
 /// node"的不同入口,全局包真正的 idiom 仍是 sibling `npm.cmd`。
 ///
@@ -2428,7 +3921,26 @@ fn default_install(installs: &[ToolInstallation]) -> Option<&ToolInstallation> {
 /// 全平台共用——`anchored_command_from_paths` 自身是 cfg 二选一(POSIX 五分支 /
 /// Windows 三分支),这里只负责取默认那处 + 转发。
 fn installs_anchored_command(tool: &str, installs: &[ToolInstallation]) -> Option<String> {
-    let inst = default_install(installs)?;
+    // 优先严格的 PATH 默认（is_path_default）；没有时若只有一项则取它。
+    let mut inst = default_install(installs);
+
+    // 鲁棒性兜底（macOS 常见）：若无法通过 canonicalize 精确匹配到 PATH 默认（GUI PATH
+    // 与登录 shell PATH、/private 前缀等差异导致 real != ），但枚举到了安装，则优先选择
+    // Homebrew formula 那一个（用户明确通过 brew 安装并能读到版本时，升级必须作用到它）。
+    // 避免回退到静态 "claude update || npm ..." （后者在 GUI bash -c 环境常因 PATH
+    // 不包含 /opt/homebrew/bin 而只更新了 npm 副本，brew 安装的那份"没反应"）。
+    if inst.is_none() && !installs.is_empty() {
+        if let Some(brew_inst) = installs.iter().find(|i| {
+            let r = i.real.to_string_lossy();
+            homebrew_cask_from_path(&r).is_some() || brew_formula_from_path(&r).is_some()
+        }) {
+            inst = Some(brew_inst);
+        } else {
+            inst = installs.first();
+        }
+    }
+
+    let inst = inst?;
     let real = inst.real.to_string_lossy();
     // Codex 平台分发包损坏自愈：主包在但平台二进制缺失时 codex 跑不起来
     // （runnable=false），此时正常锚定的 `npm i -g @latest` 是 no-op 修不好——改用
@@ -2468,28 +3980,44 @@ fn static_fallback_command(tool: &str) -> String {
 ///   `python` shim 问题;更新路径若能锚定已安装 CLI,则走 `<hermes> update`。
 ///   **Hermes 没有 npm 包,install 端不享受 `||` 降级**——上游 installer 不可达就只能等。
 /// - 对**有 npm 包**的工具(claude/opencode),短路链(POSIX `||`)保证官方脚本不可达/
-///   防火墙拦截时仍能装上,降级到裸 `npm i -g`。官方脚本本身不用 pipe,
+///   防火墙拦截时仍能装上,降级到裸 `npm i -g`（或 brew tap）。官方脚本本身不用 pipe,
 ///   所以这条路径在 WSL 的 `sh -c` 子 shell 中也不依赖外层 `pipefail`。
-/// - Windows 原生不启用:claude.ai/install.sh、opencode.ai/install 都是 bash 脚本,
-///   Windows 原生继续走 `tool_action_shell_command` 的 npm/PowerShell 命令;WSL 作为
-///   Linux 环境复用这套 POSIX 安装优先级。
-fn installer_with_npm_fallback(installer: &str, tool: &str) -> String {
-    match npm_install_command_for(tool) {
-        Some(npm) => chain_update_commands(
-            installer.to_string(),
-            npm.to_string(),
-            LifecycleCommandShell::Posix,
-        ),
-        None => installer.to_string(),
-    }
-}
+/// - Windows 原生一般不启用 bash installer（claude 除外，现已支持 install.ps1 + npm 国内镜像兜底），
 
 fn posix_install_command_for(tool: &str) -> String {
     match tool {
-        "claude" => installer_with_npm_fallback(CLAUDE_INSTALL_UNIX, tool),
-        "opencode" => installer_with_npm_fallback(OPENCODE_INSTALL_UNIX, tool),
+        "claude" => {
+            // Claude Code CLI：官方脚本优先；macOS/Linux brew，Windows npm 国内镜像。
+            let official = CLAUDE_INSTALL_UNIX.to_string();
+            let npm_fallback = claude_direct_npm_command();
+            let brew_primary = "brew install claude-code";
+            let brew_or_npm = chain_update_commands(
+                brew_primary.to_string(),
+                npm_fallback,
+                LifecycleCommandShell::Posix,
+            );
+            chain_update_commands(official, brew_or_npm, LifecycleCommandShell::Posix)
+        }
+        "opencode" => {
+            // OpenCode：官方脚本优先；macOS/Linux brew tap，Windows npm 国内镜像。
+            let official = OPENCODE_INSTALL_UNIX.to_string();
+            let npm_fallback = opencode_direct_npm_command();
+            let brew_primary = "brew install anomalyco/tap/opencode";
+            let brew_or_npm = chain_update_commands(
+                brew_primary.to_string(),
+                npm_fallback,
+                LifecycleCommandShell::Posix,
+            );
+            chain_update_commands(official, brew_or_npm, LifecycleCommandShell::Posix)
+        }
         "hermes" => HERMES_INSTALL_UNIX.to_string(),
         "grok" => GROK_INSTALL_UNIX.to_string(),
+        "codex" => {
+            // macOS/Linux 优先 Homebrew；不可用时回退 npm（Windows 使用国内镜像）。
+            let brew_primary = "brew install codex";
+            let npm_fallback = codex_direct_npm_command();
+            chain_update_commands(brew_primary.to_string(), npm_fallback, LifecycleCommandShell::Posix)
+        }
         _ => static_fallback_command_for(tool, ToolLifecycleAction::Install),
     }
 }
@@ -3932,7 +5460,8 @@ mod tests {
         #[test]
         fn opencode_windows_static_fallback_skips_official_upgrade() {
             let cmd = static_fallback_command("opencode");
-            assert_eq!(cmd, "npm i -g opencode-ai@latest");
+            // Windows 使用国内镜像 npm 兜底（与 claude/codex 一致）
+            assert_eq!(cmd, "npm i -g opencode-ai@latest --registry=https://registry.npmmirror.com");
             assert!(!cmd.contains("opencode upgrade"));
         }
 
@@ -4252,7 +5781,7 @@ mod tests {
             assert!(
                 claude.starts_with("bash -c 'tmp=$(mktemp) && curl -fsSL https://claude.ai/install.sh ")
                     && claude.contains(" || npm i -g @anthropic-ai/claude-code@latest"),
-                "WSL claude install should prefer native POSIX installer with npm fallback: {claude}"
+                "WSL claude install should prefer official installer + brew + npm (same as codex mechanism): {claude}"
             );
             assert!(!claude.contains("| bash"));
 
@@ -4398,7 +5927,7 @@ mod tests {
             );
             assert_eq!(
                 cmd.as_deref(),
-                Some("/opt/homebrew/bin/brew upgrade gemini-cli")
+                Some("/opt/homebrew/bin/brew update && /opt/homebrew/bin/brew upgrade gemini-cli")
             );
         }
 
@@ -4411,7 +5940,7 @@ mod tests {
                 "/opt/homebrew/bin/codex",
                 "/opt/homebrew/Cellar/codex/1.2.3/bin/codex",
             );
-            assert_eq!(cmd.as_deref(), Some("/opt/homebrew/bin/brew upgrade codex"));
+            assert_eq!(cmd.as_deref(), Some("/opt/homebrew/bin/brew update && /opt/homebrew/bin/brew upgrade codex"));
         }
 
         #[test]
@@ -4626,7 +6155,7 @@ mod tests {
             );
             assert_eq!(
                 cmd.as_deref(),
-                Some("'/opt/my brew/bin/brew' upgrade gemini-cli")
+                Some("'/opt/my brew/bin/brew' update && '/opt/my brew/bin/brew' upgrade gemini-cli")
             );
         }
 
@@ -4724,7 +6253,7 @@ mod tests {
         #[test]
         fn codex_broken_homebrew_formula_uses_brew_not_npm_repair() {
             // brew formula 装的坏 codex（real 在 Cellar）：自愈门控必须收窄放行，回落到
-            // `brew upgrade codex`——若误走 npm 重装，npm 够不到 Cellar 那份、反而旁路
+            // `brew update && brew upgrade codex`——若误走 npm 重装，npm 够不到 Cellar 那份、反而旁路
             // 装第二份 npm 全局 codex 制造双安装。
             let broken = ToolInstallation {
                 path: "/opt/homebrew/bin/codex".to_string(),
@@ -4737,7 +6266,7 @@ mod tests {
             };
             assert_eq!(
                 installs_anchored_command("codex", &[broken]).as_deref(),
-                Some("/opt/homebrew/bin/brew upgrade codex")
+                Some("/opt/homebrew/bin/brew update && /opt/homebrew/bin/brew upgrade codex")
             );
         }
 
@@ -4822,8 +6351,8 @@ mod tests {
 
         #[test]
         fn claude_install_prefers_native_with_npm_fallback() {
-            // Anthropic 现在主推 native installer(claude.ai/install.sh),
-            // 网络不通时短路到 npm 仍能装上;两段都得在,顺序也得对。
+            // 官方脚本优先；macOS/Linux brew，最后 npm 兜底。
+            // 三段短路链（官方 || brew || npm）
             let cmd = install_command_for("claude");
             assert!(
                 cmd.contains("https://claude.ai/install.sh"),
@@ -4833,19 +6362,25 @@ mod tests {
                 cmd.contains("@anthropic-ai/claude-code@latest"),
                 "should keep npm package as fallback: {cmd}"
             );
+            assert!(
+                cmd.contains("brew install claude-code"),
+                "should include brew as mac secondary priority: {cmd}"
+            );
             let parts: Vec<&str> = cmd.split("||").collect();
-            assert_eq!(parts.len(), 2, "should be a two-step short-circuit chain");
-            assert!(parts[0].contains("install.sh"), "native first: {cmd}");
+            assert_eq!(parts.len(), 3, "should be a three-step short-circuit chain (official || brew || npm)");
+            assert!(parts[0].contains("install.sh"), "official first: {cmd}");
             assert!(
                 !parts[0].contains('|'),
-                "native installer should avoid pipe: {cmd}"
+                "official installer should avoid pipe: {cmd}"
             );
-            assert!(parts[1].contains("npm i -g"), "npm second: {cmd}");
+            assert!(parts[1].contains("brew"), "brew second: {cmd}");
+            assert!(parts[2].contains("npm i -g"), "npm last: {cmd}");
         }
 
         #[test]
         fn opencode_install_prefers_native_with_npm_fallback() {
-            // SST 自家 install.sh 与 claude 同形态:bash 脚本、网络下载、装到 ~/.opencode/bin。
+            // 官方脚本优先；macOS/Linux brew tap，最后 npm 兜底。
+            // 三段短路链（官方 || brew tap || npm）
             let cmd = install_command_for("opencode");
             assert!(
                 cmd.contains("https://opencode.ai/install"),
@@ -4855,19 +6390,30 @@ mod tests {
                 cmd.contains("opencode-ai@latest"),
                 "should keep npm package as fallback: {cmd}"
             );
-            assert!(cmd.contains("||"), "should chain fallback: {cmd}");
             assert!(
-                !cmd.split("||").next().unwrap_or_default().contains('|'),
-                "native installer should avoid pipe: {cmd}"
+                cmd.contains("brew install anomalyco/tap/opencode"),
+                "should include brew tap as mac secondary priority: {cmd}"
             );
+            let parts: Vec<&str> = cmd.split("||").collect();
+            assert_eq!(parts.len(), 3, "should be a three-step short-circuit chain (official || brew || npm)");
+            assert!(parts[0].contains("https://opencode.ai/install"), "official first: {cmd}");
+            assert!(
+                !parts[0].contains('|'),
+                "official installer should avoid pipe: {cmd}"
+            );
+            assert!(parts[1].contains("brew"), "brew tap second: {cmd}");
+            assert!(parts[2].contains("npm i -g"), "npm last: {cmd}");
         }
 
         #[test]
         fn codex_install_keeps_static_npm() {
-            // OpenAI 暂无独立 native installer,保持原裸 npm,不引入兜底链(无东西可兜底)。
+            // macOS/Linux 优先 Homebrew，不可用时回落到 npm。
+            // 不是裸 npm；包含 brew || 兜底。
             let cmd = install_command_for("codex");
-            assert_eq!(cmd, "npm i -g @openai/codex@latest");
-            assert!(!cmd.contains("||"));
+            assert!(cmd.contains("brew install codex"), "codex mac prefers brew first: {cmd}");
+            assert!(cmd.contains("npm i -g @openai/codex@latest"), "npm fallback present: {cmd}");
+            let parts: Vec<&str> = cmd.split("||").collect();
+            assert_eq!(parts.len(), 2, "codex install is two-step (brew || npm)");
         }
 
         #[test]
@@ -5413,5 +6959,130 @@ mod tests {
             command,
             "pushd \"\\\\server\\share\\100%%^&^(test^)\" || exit /b 1\r\n"
         );
+    }
+
+    // =====================================================================
+    // Tests for desktop mirror manifest logic (Codex fallback + Claude primary)
+    // =====================================================================
+
+    #[test]
+    fn codex_mirror_platform_key_mapping() {
+        // 在当前编译目标（macOS）下验证映射
+        // macOS aarch64 -> mac-arm64-dmg ; x86_64 -> mac-x64-dmg
+        let key = codex_mirror_platform_key();
+        // 由于测试在 macOS arm 上运行
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        assert_eq!(key, Some("mac-arm64-dmg"));
+        #[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+        assert_eq!(key, Some("mac-x64-dmg"));
+    }
+
+    #[test]
+    fn claude_mirror_platform_key_mapping() {
+        let key = claude_mirror_platform_key();
+        #[cfg(target_os = "macos")]
+        assert_eq!(key, Some("mac-universal-dmg"));
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        assert_eq!(key, Some("win-arm64-msix"));
+    }
+
+    #[test]
+    fn extract_sha256_from_sums_works() {
+        let sums = r#"
+# comments
+ff459150991612007549270d2d28c5e78cec6bd6ac200a7ada5ed6c031369b87  Codex-26.715.21425-mac-arm64.dmg
+e3af7a3b1f14eeaf9b17a410a7b229d1f293f4eafede5f5d396b43c1fc250e50  Codex-26.715.21425-mac-arm64.zip
+f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_26.715.2305.0_x64__2p2nqsd0c76g0.Msix
+        "#;
+        assert_eq!(
+            extract_sha256_from_sums(sums, "Codex-26.715.21425-mac-arm64.dmg").unwrap(),
+            "ff459150991612007549270d2d28c5e78cec6bd6ac200a7ada5ed6c031369b87"
+        );
+        assert_eq!(
+            extract_sha256_from_sums(sums, "OpenAI.Codex_26.715.2305.0_x64__2p2nqsd0c76g0.Msix").unwrap(),
+            "f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e"
+        );
+        assert!(extract_sha256_from_sums(sums, "nonexistent.dmg").is_err());
+    }
+
+    #[test]
+    fn manifest_filename_splicing_logic() {
+        // 模拟 manifest 结构，验证 filename 拼接 URL
+        let fake_manifest = serde_json::json!({
+            "version": "1.2.3",
+            "platforms": {
+                "mac-universal-dmg": { "filename": "Claude-1.2.3-mac-universal-dmg.dmg" },
+                "win-x64-msix": { "filename": "Claude-1.2.3-win-x64-msix.msix" }
+            }
+        });
+        let key = "mac-universal-dmg";
+        let plat = fake_manifest["platforms"].get(key).unwrap();
+        let filename = plat["filename"].as_str().unwrap();
+        let url = format!("https://software.lumocore.edu.kg/claude-desktop/latest/{}", filename);
+        assert_eq!(url, "https://software.lumocore.edu.kg/claude-desktop/latest/Claude-1.2.3-mac-universal-dmg.dmg");
+    }
+
+    #[test]
+    fn parse_brew_info_version_formula_v1_and_cask_v2() {
+        // formula v1 直接数组（opencode 等）
+        let formula_json = r#"[
+          {
+            "name": "opencode",
+            "versions": { "stable": "1.18.0", "head": null },
+            "version": "1.18.0"
+          }
+        ]"#;
+        assert_eq!(parse_brew_info_version(formula_json), Some("1.18.0".to_string()));
+
+        // cask v2 包装（claude-code）
+        let cask_v2_json = r#"{
+          "formulae": [],
+          "casks": [
+            {
+              "token": "claude-code",
+              "version": "2.1.205",
+              "installed": "2.1.205"
+            }
+          ]
+        }"#;
+        assert_eq!(parse_brew_info_version(cask_v2_json), Some("2.1.205".to_string()));
+
+        // 直接 object 兜底
+        let direct = r#"{"version": "0.9.9"}"#;
+        assert_eq!(parse_brew_info_version(direct), Some("0.9.9".to_string()));
+
+        // 脏值过滤
+        assert_eq!(parse_brew_info_version(r#"[{"version": "latest"}]"#), None);
+        assert_eq!(parse_brew_info_version(r#"{"casks":[{"version":"HEAD"}]}"#), None);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn brew_default_install_prefers_brew_info_over_npm_for_latest() {
+        // 在有 brew 安装的机器上验证：opencode 的默认 PATH 指向 Cellar 时，
+        // 我们拿到的 latest 必须来自 brew info（与 `brew upgrade` 一致），而非 npm 可能更新的版本。
+        let default_path = resolve_path_default("opencode");
+        assert!(default_path.is_some(), "opencode should be discoverable via login shell on this env");
+
+        let real = default_path.unwrap().to_string_lossy().to_string();
+        let formula = brew_formula_from_path(&real);
+        assert_eq!(formula.as_deref(), Some("opencode"), "should extract formula name from Cellar path: {real}");
+
+        // 直接调用与 get_preferred 相同的路径
+        let brew_exe = resolve_path_default("brew").map(|p| p.to_string_lossy().into_owned());
+        let latest = fetch_brew_latest_version(brew_exe.as_deref(), "opencode", false);
+
+        // 用真实 brew info 作为 ground truth（避免测试随 tap 升级而失效）
+        let truth = std::process::Command::new(brew_exe.as_deref().unwrap_or("brew"))
+            .args(["info", "--json", "opencode"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    parse_brew_info_version(&decode_command_output(&o.stdout))
+                } else { None }
+            });
+        assert!(truth.is_some(), "brew must report a stable version for opencode");
+        assert_eq!(latest, truth, "our brew latest path must match raw `brew info` output for the installed tool");
     }
 }

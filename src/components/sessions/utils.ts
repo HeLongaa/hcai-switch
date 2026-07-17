@@ -123,6 +123,7 @@ export const getProviderIconName = (providerId: string) => {
   if (providerId === "codex") return "openai";
   if (providerId === "claude") return "claude";
   if (providerId === "opencode") return "opencode";
+  if (providerId === "grok") return "grok";
   return providerId;
 };
 

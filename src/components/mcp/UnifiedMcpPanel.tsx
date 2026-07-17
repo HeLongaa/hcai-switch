@@ -24,6 +24,10 @@ import { ListItemRow } from "@/components/common/ListItemRow";
 
 interface UnifiedMcpPanelProps {
   onOpenChange: (open: boolean) => void;
+  /** Leave space for app sidebar (px) */
+  leftOffset?: number;
+  /** Top content inset matching App dragBarHeight */
+  topOffset?: number;
 }
 
 export interface UnifiedMcpPanelHandle {
@@ -34,7 +38,7 @@ export interface UnifiedMcpPanelHandle {
 const UnifiedMcpPanel = React.forwardRef<
   UnifiedMcpPanelHandle,
   UnifiedMcpPanelProps
->(({ onOpenChange: _onOpenChange }, ref) => {
+>(({ onOpenChange: _onOpenChange, leftOffset = 0, topOffset }, ref) => {
   const { t } = useTranslation();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -193,6 +197,8 @@ const UnifiedMcpPanel = React.forwardRef<
             setEditingId(null);
           }}
           onClose={handleCloseForm}
+          leftOffset={leftOffset}
+          topOffset={topOffset}
         />
       )}
 

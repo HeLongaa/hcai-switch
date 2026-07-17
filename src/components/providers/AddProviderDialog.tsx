@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -52,8 +52,27 @@ export function AddProviderDialog({
   topOffset,
 }: AddProviderDialogProps) {
   const { t } = useTranslation();
+
+  const addTitle = useMemo(() => {
+    switch (appId) {
+      case "claude":
+        return t("provider.addClaudeProvider");
+      case "codex":
+        return t("provider.addCodexProvider");
+      case "claude-desktop":
+        return t("provider.addClaudeDesktopProvider");
+      case "opencode":
+        return t("provider.addOpenCodeProvider");
+      case "grok":
+        return t("provider.addGrokProvider");
+      default:
+        return t("provider.addNewProvider");
+    }
+  }, [appId, t]);
+
   // OpenCode and Claude Desktop don't support universal providers
-  const showUniversalTab = appId !== "opencode" && appId !== "claude-desktop";
+  const showUniversalTab =
+    appId !== "opencode" && appId !== "claude-desktop";
   const [activeTab, setActiveTab] = useState<"app-specific" | "universal">(
     "app-specific",
   );
@@ -399,7 +418,7 @@ export function AddProviderDialog({
   return (
     <FullScreenPanel
       isOpen={open}
-      title={t("provider.addNewProvider")}
+      title={addTitle}
       onClose={() => onOpenChange(false)}
       footer={footer}
       contentClassName="pt-3"

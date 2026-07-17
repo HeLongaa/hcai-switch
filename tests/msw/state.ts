@@ -218,10 +218,10 @@ export const resetProviderState = () => {
           url: "http://localhost:3000",
         },
       },
-    },
-    opencode: {},
-    grok: {},
-  };
+  },
+  opencode: {},
+  grok: {},
+};
 };
 
 export const getProviders = (appType: AppId) =>

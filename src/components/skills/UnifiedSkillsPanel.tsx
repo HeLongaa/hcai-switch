@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Sparkles,
+  Wrench,
   Trash2,
   ExternalLink,
   RefreshCw,
@@ -47,6 +47,10 @@ import {
 interface UnifiedSkillsPanelProps {
   onOpenDiscovery: () => void;
   currentApp: AppId;
+  /** Leave space for app sidebar (px) */
+  leftOffset?: number;
+  /** Top content inset matching App dragBarHeight */
+  topOffset?: number;
 }
 
 export interface UnifiedSkillsPanelHandle {
@@ -67,7 +71,7 @@ function formatSkillBackupDate(unixSeconds: number): string {
 const UnifiedSkillsPanel = React.forwardRef<
   UnifiedSkillsPanelHandle,
   UnifiedSkillsPanelProps
->(({ onOpenDiscovery, currentApp }, ref) => {
+>(({ onOpenDiscovery, currentApp, leftOffset: _leftOffset, topOffset: _topOffset }, ref) => {
   const { t } = useTranslation();
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -406,7 +410,7 @@ const UnifiedSkillsPanel = React.forwardRef<
         ) : !skills || skills.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-              <Sparkles size={24} className="text-muted-foreground" />
+              <Wrench size={24} className="text-muted-foreground" />
             </div>
             <h3 className="text-lg font-medium text-foreground mb-2">
               {t("skills.noInstalled")}
@@ -734,17 +738,20 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
   const [selected, setSelected] = useState<Set<string>>(
     new Set(skills.map((s) => s.directory)),
   );
+  const getDefaultAppsForFound = (foundIn: string[]) => ({
+    claude: foundIn.includes("claude"),
+    codex: foundIn.includes("codex"),
+    opencode: foundIn.includes("opencode"),
+    grok: foundIn.includes("grok"),
+  });
+
   const [selectedApps, setSelectedApps] = useState<
     Record<string, ImportSkillSelection["apps"]>
   >(() =>
     Object.fromEntries(
       skills.map((skill) => [
         skill.directory,
-        {
-          claude: skill.foundIn.includes("claude"),
-          codex: skill.foundIn.includes("codex"),
-          opencode: skill.foundIn.includes("opencode"),
-        },
+        getDefaultAppsForFound(skill.foundIn),
       ]),
     ),
   );
@@ -763,11 +770,7 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
     onImport(
       Array.from(selected).map((directory) => ({
         directory,
-        apps: selectedApps[directory] ?? {
-          claude: false,
-          codex: false,
-          opencode: false,
-        },
+        apps: selectedApps[directory] ?? getDefaultAppsForFound([]),
       })),
     );
   };
@@ -803,21 +806,13 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
                   <div className="mt-2">
                     <AppToggleGroup
                       apps={
-                        selectedApps[skill.directory] ?? {
-                          claude: false,
-                          codex: false,
-                          opencode: false,
-                        }
+                        selectedApps[skill.directory] ?? getDefaultAppsForFound([])
                       }
                       onToggle={(app, enabled) => {
                         setSelectedApps((prev) => ({
                           ...prev,
                           [skill.directory]: {
-                            ...(prev[skill.directory] ?? {
-                              claude: false,
-                              codex: false,
-                              opencode: false,
-                            }),
+                            ...(prev[skill.directory] ?? getDefaultAppsForFound([])),
                             [app]: enabled,
                           },
                         }));

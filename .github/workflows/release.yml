@@ -654,14 +654,14 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: HCAI Switch ${{ github.ref_name }}
-          prerelease: false
-          make_latest: true
+          prerelease: true
+          make_latest: false
           body: |
             ## HCAI Switch ${{ github.ref_name }}
 
             🌐 **Only Official Website / 唯一官方网站 / 唯一の公式サイト**: [github.com/WangYa-Technology](https://github.com/WangYa-Technology)
 
-            Claude Code 供应商切换工具
+            少一点切换 · 多一点创造
 
             ### 下载
 
@@ -674,7 +674,14 @@ jobs:
             > `.tar.gz` 为 Tauri updater 自动更新专用，无需手动下载。
 
             ---
-            macOS 版本已通过 Apple 代码签名和公证，可直接安装使用。
+            macOS 版本安装说明：
+            1. 打开下载好的 `.dmg` 文件，拖动 `HCAI Switch.app` 到应用程序文件夹。
+            2. 由于 macOS 严格的系统安全保护，首次双击打开应用时，可能会弹出 “无法打开，因为 Apple 无法检查其是否包含恶意软件” 的提示。
+              - 解决方法一：前往 macOS 的 系统设置 隐私与安全性，下滑找到应用被拦截的提示，点击 仍要打开，并在弹出的确认框中输入您的 Mac 开机密码即可。
+              - 解决方法二 (针对极客)：若系统未弹出选项，可在终端中执行以下命令清除系统检疫隔离标记：
+              ```
+              sudo xattr -rd com.apple.quarantine '/Applications/HCAI Switch.app'
+              ```
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

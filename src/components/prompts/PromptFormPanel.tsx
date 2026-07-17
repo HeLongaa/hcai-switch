@@ -5,38 +5,53 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import { FullScreenPanel } from "@/components/common/FullScreenPanel";
+import { AppToggleGroup } from "@/components/common/AppToggleGroup";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { PROMPTS_APP_IDS } from "@/config/appConfig";
 import type { Prompt, AppId } from "@/lib/api";
 
 interface PromptFormPanelProps {
-  appId: AppId;
+  editingAppId?: AppId;
   editingId?: string;
   initialData?: Prompt;
-  onSave: (id: string, prompt: Prompt) => Promise<void>;
+  onSave: (appIds: AppId[], id: string, prompt: Prompt) => Promise<void>;
   onClose: () => void;
+  /** Leave space for app sidebar (px) */
+  leftOffset?: number;
+  /** Top content inset matching App dragBarHeight */
+  topOffset?: number;
 }
 
 const PromptFormPanel: React.FC<PromptFormPanelProps> = ({
-  appId,
+  editingAppId,
   editingId,
   initialData,
   onSave,
   onClose,
+  leftOffset = 0,
+  topOffset,
 }) => {
   const { t } = useTranslation();
-  const appName = t(`apps.${appId}`);
-  const filenameMap: Record<AppId, string> = {
+  const isEditing = !!editingId;
+  const appName = editingAppId ? t(`apps.${editingAppId}`) : "";
+  const filenameMap: Record<string, string> = {
     claude: "CLAUDE.md",
     "claude-desktop": "CLAUDE.md",
     codex: "AGENTS.md",
     opencode: "AGENTS.md",
     grok: "AGENTS.md",
   };
-  const filename = filenameMap[appId];
+  const filename = filenameMap[editingAppId || "claude"] || "AGENTS.md";
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const [targetApps, setTargetApps] = useState<Partial<Record<AppId, boolean>>>(
+    () => Object.fromEntries(PROMPTS_APP_IDS.map((a) => [a, true])),
+  );
 
   useEffect(() => {
     setIsDarkMode(document.documentElement.classList.contains("dark"));
@@ -79,29 +94,40 @@ const PromptFormPanel: React.FC<PromptFormPanelProps> = ({
         createdAt: initialData?.createdAt || timestamp,
         updatedAt: timestamp,
       };
-      await onSave(id, prompt);
+
+      const appsToSave: AppId[] = isEditing && editingAppId
+        ? [editingAppId]
+        : PROMPTS_APP_IDS.filter((a) => targetApps[a]);
+
+      await onSave(appsToSave, id, prompt);
       onClose();
     } catch (error) {
-      // Error handled by hook
+      // Error handled by caller
     } finally {
       setSaving(false);
     }
   };
 
-  const title = editingId
+  const title = isEditing
     ? t("prompts.editTitle", { appName })
-    : t("prompts.addTitle", { appName });
+    : t("prompts.add");
+
+  const selectedTargetCount = isEditing
+    ? 1
+    : PROMPTS_APP_IDS.filter((a) => targetApps[a]).length;
 
   return (
     <FullScreenPanel
       isOpen={true}
       title={title}
       onClose={onClose}
+      leftOffset={leftOffset}
+      topOffset={topOffset}
       footer={
         <Button
           type="button"
           onClick={handleSave}
-          disabled={!name.trim() || saving}
+          disabled={!name.trim() || saving || selectedTargetCount === 0}
           className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? t("common.saving") : t("common.save")}
@@ -147,6 +173,26 @@ const PromptFormPanel: React.FC<PromptFormPanelProps> = ({
             minHeight="167px"
           />
         </div>
+
+        {!isEditing && (
+          <TooltipProvider delayDuration={300}>
+            <div>
+              <Label className="text-foreground">添加到应用</Label>
+              <div className="mt-2">
+                <AppToggleGroup
+                  apps={targetApps}
+                  onToggle={(app, enabled) =>
+                    setTargetApps((prev) => ({ ...prev, [app]: enabled }))
+                  }
+                  appIds={PROMPTS_APP_IDS}
+                />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                提示词内容将被复制添加到选中的应用。
+              </p>
+            </div>
+          </TooltipProvider>
+        )}
       </div>
     </FullScreenPanel>
   );

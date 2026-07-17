@@ -81,7 +81,7 @@ const SESSION_LIST_VIEW_MODE_STORAGE_KEY =
 const SESSION_GROUP_EXPANSION_STORAGE_KEY =
   "cc-switch.sessionManager.groupExpansionState";
 
-type ProviderFilter = "all" | "codex" | "claude" | "opencode";
+type ProviderFilter = "all" | "codex" | "claude" | "opencode" | "grok";
 
 type SessionListViewMode = "flat" | "grouped";
 
@@ -206,6 +206,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
     appId as ProviderFilter,
   );
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
   const [listViewMode, setListViewMode] = useState<SessionListViewMode>(
     readInitialSessionListViewMode,
   );
@@ -324,9 +325,9 @@ export function SessionManagerPage({ appId }: { appId: string }) {
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => 120,
-    overscan: 5,
-    gap: 12,
+    estimateSize: () => 132,
+    overscan: 6,
+    gap: 16,
   });
 
   useEffect(() => {
@@ -788,10 +789,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
       >
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
           {/* 主内容区域 - 左右分栏 */}
-          <div className="flex-1 overflow-hidden grid gap-4 min-w-0 md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
-            {/* 左侧会话列表 */}
-            <Card className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
-              <CardHeader className="py-2 px-3 border-b">
+          <div className="flex-1 overflow-hidden flex min-w-0 gap-5 md:gap-6" style={{ minWidth: 900 }}>
+            {/* 左侧会话列表 - 响应式固定宽度，小窗口不挤 */}
+            <Card className="flex flex-col w-[330px] shrink-0 min-h-0 min-w-0 overflow-hidden">
+              <CardHeader className="py-2.5 px-3 sm:py-3 sm:px-4 border-b">
                 {isSearchOpen ? (
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="relative flex-1 min-w-0">
@@ -1091,6 +1092,16 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                 <span>OpenCode</span>
                               </div>
                             </SelectItem>
+                            <SelectItem value="grok">
+                              <div className="flex items-center gap-2">
+                                <ProviderIcon
+                                  icon="grok"
+                                  name="grok"
+                                  size={14}
+                                />
+                                <span>Grok Build</span>
+                              </div>
+                            </SelectItem>
                           </SelectContent>
                         </Select>
 
@@ -1182,7 +1193,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
               </CardHeader>
               <CardContent className="flex-1 min-h-0 p-0">
                 <ScrollArea className="h-full">
-                  <div className="p-2">
+                  <div className="p-2 sm:p-3">
                     {isLoading ? (
                       <div className="flex items-center justify-center py-12">
                         <RefreshCw className="size-5 animate-spin text-muted-foreground" />
@@ -1216,7 +1227,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                 toggleProviderGroup(providerGroup.providerId)
                               }
                             >
-                              <div className="flex w-full items-center gap-2 rounded-md border bg-muted/40 px-2.5 py-2 transition-colors hover:bg-muted">
+                              <div className="flex w-full items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 transition-colors hover:bg-muted">
                                 {renderProviderGroupCheckbox(
                                   providerGroup,
                                   providerLabel,
@@ -1258,7 +1269,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                   </button>
                                 </CollapsibleTrigger>
                               </div>
-                              <CollapsibleContent className="mt-1 space-y-1 pl-2">
+                              <CollapsibleContent className="mt-2 space-y-1.5 pl-2">
                                 {providerGroup.directories.map(
                                   (directoryGroup) => {
                                     const directoryOpen =
@@ -1280,7 +1291,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                           )
                                         }
                                       >
-                                        <div className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                                        <div className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                                           {renderDirectoryGroupCheckbox(
                                             directoryGroup,
                                             directorySelectionState,
@@ -1335,7 +1346,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                             </button>
                                           </CollapsibleTrigger>
                                         </div>
-                                        <CollapsibleContent className="mt-1 space-y-1 pl-3">
+                                        <CollapsibleContent className="mt-1.5 space-y-1.5 pl-3">
                                           {directoryGroup.sessions.map(
                                             (session) =>
                                               renderSessionItem(session),
@@ -1351,7 +1362,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         })}
                       </div>
                     ) : (
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         {filteredSessions.map((session) =>
                           renderSessionItem(session),
                         )}
@@ -1362,9 +1373,9 @@ export function SessionManagerPage({ appId }: { appId: string }) {
               </CardContent>
             </Card>
 
-            {/* 右侧会话详情 */}
+            {/* 右侧会话详情 - 使用 flex-1 + max-w，小窗口可收缩，大窗口不超宽 */}
             <Card
-              className="flex flex-col overflow-hidden min-h-0"
+              className="flex flex-col w-[700px] shrink-0 overflow-hidden min-h-0"
               ref={detailRef}
             >
               {!selectedSession ? (
@@ -1375,11 +1386,11 @@ export function SessionManagerPage({ appId }: { appId: string }) {
               ) : (
                 <>
                   {/* 详情头部 */}
-                  <CardHeader className="py-3 px-4 border-b shrink-0">
-                    <div className="flex items-start justify-between gap-4">
+                  <CardHeader className="py-3 px-3 sm:py-4 sm:px-5 border-b shrink-0">
+                    <div className="flex min-w-0 items-start justify-between gap-4">
                       {/* 左侧：会话信息 */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex min-w-0 items-center gap-2.5 mb-1.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="shrink-0">
@@ -1396,13 +1407,13 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                               {getProviderLabel(selectedSession.providerId, t)}
                             </TooltipContent>
                           </Tooltip>
-                          <h2 className="text-base font-semibold truncate">
+                          <h2 className="min-w-0 text-[15px] font-semibold leading-tight truncate pr-1">
                             {formatSessionTitle(selectedSession)}
                           </h2>
                         </div>
 
                         {/* 元信息 */}
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-x-5 gap-y-0.5 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Clock className="size-3" />
                             <span>
@@ -1426,7 +1437,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                   className="flex items-center gap-1 hover:text-foreground transition-colors"
                                 >
                                   <FolderOpen className="size-3" />
-                                  <span className="truncate max-w-[200px]">
+                                  <span className="truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px]">
                                     {getBaseName(selectedSession.projectDir)}
                                   </span>
                                 </button>
@@ -1458,7 +1469,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                   className="flex items-center gap-1 hover:text-foreground transition-colors"
                                 >
                                   <FileText className="size-3 shrink-0" />
-                                  <span className="font-mono truncate max-w-[200px]">
+                                  <span className="font-mono truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px]">
                                     {getBaseName(selectedSession.sourcePath)}
                                   </span>
                                 </button>
@@ -1486,7 +1497,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                             <TooltipTrigger asChild>
                               <Button
                                 size="sm"
-                                className="gap-1.5"
+                                className="gap-1.5 h-8 px-3"
                                 onClick={() => void handleResume()}
                                 disabled={!selectedSession.resumeCommand}
                               >
@@ -1514,7 +1525,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                             <Button
                               size="sm"
                               variant="destructive"
-                              className="gap-1.5"
+                              className="gap-1.5 h-8 px-3"
                               onClick={() =>
                                 setDeleteTargets([selectedSession])
                               }
@@ -1545,8 +1556,8 @@ export function SessionManagerPage({ appId }: { appId: string }) {
 
                     {/* 恢复命令预览 */}
                     {selectedSession.resumeCommand && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <div className="flex-1 rounded-md bg-muted/60 px-3 py-1.5 font-mono text-xs text-muted-foreground truncate">
+                      <div className="mt-3 flex min-w-0 items-center gap-2">
+                        <div className="flex-1 min-w-0 rounded-lg bg-muted/70 px-3.5 py-2 font-mono text-[11px] text-muted-foreground truncate border border-border/60">
                           {selectedSession.resumeCommand}
                         </div>
                         <Tooltip>
@@ -1554,7 +1565,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="size-7 shrink-0"
+                              className="size-8 shrink-0 hover:bg-background"
                               onClick={() =>
                                 void handleCopy(
                                   selectedSession.resumeCommand!,
@@ -1577,10 +1588,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
 
                   {/* 消息列表区域 */}
                   <CardContent className="flex-1 min-h-0 p-0">
-                    <div className="flex h-full min-w-0">
-                      {/* 消息列表 */}
+                    <div className="flex h-full min-w-0 relative">
+                      {/* 消息列表 - 宽度由右侧大框 max-w 决定 */}
                       <div className="flex-1 min-w-0 flex flex-col">
-                        <div className="px-4 pt-4 pb-2 min-w-0">
+                        <div className="px-3 pt-3 pb-1.5 sm:px-5 sm:pt-4 sm:pb-2 min-w-0">
                           <div className="flex items-center gap-2">
                             <MessageSquare className="size-4 text-muted-foreground" />
                             <span className="text-sm font-medium">
@@ -1595,7 +1606,7 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                         </div>
                         <div
                           ref={scrollContainerRef}
-                          className="flex-1 overflow-y-auto px-4 pb-4 min-w-0"
+                          className="flex-1 overflow-y-auto px-3 pb-3 sm:px-5 sm:pb-5 min-w-0"
                         >
                           {isLoadingMessages ? (
                             <div className="flex items-center justify-center py-12">

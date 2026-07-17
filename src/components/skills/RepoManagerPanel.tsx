@@ -14,6 +14,10 @@ interface RepoManagerPanelProps {
   onAdd: (repo: SkillRepo) => Promise<void>;
   onRemove: (owner: string, name: string) => Promise<void>;
   onClose: () => void;
+  /** Leave space for app sidebar (px) */
+  leftOffset?: number;
+  /** Top content inset matching App dragBarHeight */
+  topOffset?: number;
 }
 
 export function RepoManagerPanel({
@@ -22,6 +26,8 @@ export function RepoManagerPanel({
   onAdd,
   onRemove,
   onClose,
+  leftOffset = 0,
+  topOffset,
 }: RepoManagerPanelProps) {
   const { t } = useTranslation();
   const [repoUrl, setRepoUrl] = useState("");
@@ -88,6 +94,8 @@ export function RepoManagerPanel({
       isOpen={true}
       title={t("skills.repo.title")}
       onClose={onClose}
+      leftOffset={leftOffset}
+      topOffset={topOffset}
     >
       {/* 添加仓库表单 */}
       <div className="space-y-4 glass-card rounded-xl p-6">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -25,12 +25,17 @@ import {
   ChevronDown,
   Bot,
   Layers,
+  ArrowLeft,
   type LucideIcon,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
 import type { EnvConflict } from "@/types/env";
-import { useProvidersQuery, useSettingsQuery } from "@/lib/query";
+import {
+  useProvidersQuery,
+  useSettingsQuery,
+  useAddProviderMutation,
+} from "@/lib/query";
 import {
   providersApi,
   settingsApi,
@@ -48,6 +53,7 @@ import { extractErrorMessage } from "@/utils/errorUtils";
 import { isTextEditableTarget } from "@/utils/domUtils";
 import { deepClone } from "@/utils/deepClone";
 import { cn } from "@/lib/utils";
+import { injectCodingPlanUsageScript } from "@/config/codingPlanProviders";
 import {
   isWindows,
   isLinux,
@@ -56,6 +62,11 @@ import {
 } from "@/lib/platform";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { ProfileSwitcher } from "@/components/profiles/ProfileSwitcher";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ProviderList } from "@/components/providers/ProviderList";
 import { AddProviderDialog } from "@/components/providers/AddProviderDialog";
 import { EditProviderDialog } from "@/components/providers/EditProviderDialog";
@@ -83,6 +94,7 @@ import { McpIcon } from "@/components/BrandIcons";
 import { Button } from "@/components/ui/button";
 import { SessionManagerPage } from "@/components/sessions/SessionManagerPage";
 import { UsagePage } from "@/components/usage/UsagePage";
+import InstallToolsPage from "@/components/install/InstallToolsPage";
 import {
   useDisableCurrentOmo,
   useDisableCurrentOmoSlim,
@@ -101,6 +113,7 @@ type View =
   | "universal"
   | "sessions"
   | "usage"
+  | "install"
   | "hcai";
 
 interface SyncStatusUpdatedPayload {
@@ -114,6 +127,14 @@ const HEADER_HEIGHT = 64; // px
 const SIDEBAR_WIDTH_EXPANDED = 220; // px — icon + label + section titles
 const SIDEBAR_WIDTH_COLLAPSED = 80; // px — icon only (slightly roomier than 68)
 const SIDEBAR_EXPANDED_KEY = "cc-switch-sidebar-expanded";
+
+const ADDABLE_APPS: AppId[] = [
+  "claude",
+  "claude-desktop",
+  "codex",
+  "opencode",
+  "grok",
+];
 
 /** Header title for the app currently being configured */
 const ACTIVE_APP_META: Record<
@@ -135,7 +156,8 @@ const ACTIVE_APP_META: Record<
 const VIEW_HEADER_ICON: Partial<
   Record<
     View,
-    { Icon: LucideIcon; className: string } | { kind: "mcp"; className: string }
+    | { Icon: LucideIcon; className: string }
+    | { kind: "mcp"; className: string }
   >
 > = {
   usage: { Icon: BarChart2, className: "text-violet-500 dark:text-violet-400" },
@@ -151,6 +173,10 @@ const VIEW_HEADER_ICON: Partial<
   },
   mcp: { kind: "mcp", className: "text-cyan-500 dark:text-cyan-400" },
   settings: { Icon: Settings, className: "text-sky-500 dark:text-sky-400" },
+  install: {
+    Icon: Download,
+    className: "text-emerald-500 dark:text-emerald-400",
+  },
   agents: { Icon: Bot, className: "text-rose-500 dark:text-rose-400" },
   universal: {
     Icon: Layers,
@@ -214,6 +240,8 @@ function App() {
     useState<SkillsPageSource>("repos");
   const [settingsDefaultTab, setSettingsDefaultTab] = useState("general");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAddAppSelectorOpen, setIsAddAppSelectorOpen] = useState(false);
+  const [addForAppId, setAddForAppId] = useState<AppId | null>(null);
   const [isWindowMaximized, setIsWindowMaximized] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
@@ -231,9 +259,23 @@ function App() {
   useEffect(() => {
     if (currentView !== "providers") {
       setIsAddOpen(false);
+      setIsAddAppSelectorOpen(false);
+      setAddForAppId(null);
       setEditingProvider(null);
     }
   }, [currentView]);
+
+  // Also clear overlays when the active app changes (e.g. user switches app
+  // while a provider config edit dialog is open). This ensures we don't
+  // remain on a stale editing page for the previous app.
+  useEffect(() => {
+    setIsAddOpen(false);
+    setIsAddAppSelectorOpen(false);
+    setAddForAppId(null);
+    setEditingProvider(null);
+    setConfirmAction(null);
+    setUsageProvider(null);
+  }, [activeApp]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -275,7 +317,7 @@ function App() {
       activeApp === "codex" ||
       activeApp === "opencode" ||
       activeApp === "grok"
-        ? visibleApps[activeApp]
+        ? (visibleApps[activeApp] ?? true)
         : false;
     if (!isVisible) {
       setActiveApp(getFirstVisibleApp());
@@ -288,7 +330,8 @@ function App() {
       currentView === "sessions" &&
       sharedFeatureApp !== "claude" &&
       sharedFeatureApp !== "codex" &&
-      sharedFeatureApp !== "opencode"
+      sharedFeatureApp !== "opencode" &&
+      sharedFeatureApp !== "grok"
     ) {
       setCurrentView("providers");
     }
@@ -373,7 +416,8 @@ function App() {
   const hasSessionSupport =
     sharedFeatureApp === "claude" ||
     sharedFeatureApp === "codex" ||
-    sharedFeatureApp === "opencode";
+    sharedFeatureApp === "opencode" ||
+    sharedFeatureApp === "grok";
 
   const {
     addProvider,
@@ -385,6 +429,32 @@ function App() {
     activeApp,
     isProxyRunning,
     isProxyRunning && isCurrentAppTakeoverActive,
+  );
+
+  // Mutations for adding to any specific app (used by the app selector popover on the add button)
+  const addProviderMutationMap = {
+    claude: useAddProviderMutation("claude"),
+    "claude-desktop": useAddProviderMutation("claude-desktop"),
+    codex: useAddProviderMutation("codex"),
+    opencode: useAddProviderMutation("opencode"),
+    grok: useAddProviderMutation("grok"),
+  };
+
+  const handleAddProvider = useCallback(
+    async (
+      provider: Omit<Provider, "id"> & {
+        providerKey?: string;
+        ensureClaudeDesktopOfficialSeed?: boolean;
+        ensureCodexOfficialSeed?: boolean;
+      },
+      targetAppId?: AppId,
+    ) => {
+      const target = targetAppId || activeApp;
+      const enhanced = injectCodingPlanUsageScript(target, provider);
+      const mutation = addProviderMutationMap[target];
+      await mutation.mutateAsync(enhanced);
+    },
+    [activeApp, addProviderMutationMap],
   );
 
   const disableOmoMutation = useDisableCurrentOmo();
@@ -869,6 +939,41 @@ function App() {
     }
   };
 
+  const handleLaunchCodexDesktop = async () => {
+    try {
+      await providersApi.launchCodexDesktop();
+      toast.success(
+        t("codex.launchDesktopSuccess", {
+          defaultValue: "ChatGPT（Codex Desktop）已重启",
+        }),
+      );
+    } catch (error: any) {
+      const msg = extractErrorMessage(error) || String(error);
+      const lower = msg.toLowerCase();
+      if (
+        lower.includes("未安装") ||
+        lower.includes("not installed") ||
+        lower.includes("no such") ||
+        lower.includes("not found") ||
+        lower.includes("找不到")
+      ) {
+        toast.error(
+          t("codex.desktopNotInstalled", {
+            defaultValue:
+              "未检测到 ChatGPT / Codex Desktop，请先安装官方桌面应用后再尝试启动。",
+          }),
+        );
+      } else {
+        toast.error(
+          t("codex.launchDesktopFailed", {
+            defaultValue: "启动 ChatGPT（Codex Desktop）失败",
+            error: msg,
+          }) + (msg ? `: ${msg}` : ""),
+        );
+      }
+    }
+  };
+
   const handleImportSuccess = async () => {
     try {
       await queryClient.invalidateQueries({
@@ -951,7 +1056,8 @@ function App() {
               ref={promptPanelRef}
               open={true}
               onOpenChange={() => setCurrentView("providers")}
-              appId={sharedFeatureApp}
+              leftOffset={sidebarWidth}
+              topOffset={dragBarHeight}
             />
           );
         case "skills":
@@ -960,6 +1066,8 @@ function App() {
               ref={unifiedSkillsPanelRef}
               onOpenDiscovery={handleOpenSkillsDiscovery}
               currentApp={sharedFeatureApp}
+              leftOffset={sidebarWidth}
+              topOffset={dragBarHeight}
             />
           );
         case "skillsDiscovery":
@@ -968,6 +1076,8 @@ function App() {
               ref={skillsPageRef}
               initialApp={sharedFeatureApp}
               onSourceChange={setSkillsDiscoverySource}
+              leftOffset={sidebarWidth}
+              topOffset={dragBarHeight}
             />
           );
         case "mcp":
@@ -975,6 +1085,8 @@ function App() {
             <UnifiedMcpPanel
               ref={mcpPanelRef}
               onOpenChange={() => setCurrentView("providers")}
+              leftOffset={sidebarWidth}
+              topOffset={dragBarHeight}
             />
           );
         case "agents":
@@ -1007,6 +1119,8 @@ function App() {
           );
         case "usage":
           return <UsagePage />;
+        case "install":
+          return <InstallToolsPage />;
         default:
           return (
             <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -1017,7 +1131,7 @@ function App() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
+                    transition={{ duration: 0.06 }}
                     className="space-y-4"
                   >
                     <ProviderList
@@ -1057,7 +1171,10 @@ function App() {
                       onOpenTerminal={
                         activeApp === "claude" ? handleOpenTerminal : undefined
                       }
-                      onCreate={() => setIsAddOpen(true)}
+                      onCreate={() => {
+                        setAddForAppId(null);
+                        setIsAddOpen(true);
+                      }}
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -1075,7 +1192,7 @@ function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: 0.08 }}
         >
           {content}
         </motion.div>
@@ -1276,10 +1393,14 @@ function App() {
                         ? "h-11 w-full justify-start gap-2.5 px-3"
                         : "h-10 w-10 justify-center",
                       currentView === "hcai"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-background/60",
+                        ? "bg-blue-500 text-white shadow-sm hover:bg-blue-500 hover:text-white"
+                        : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                     )}
-                    title={t("hcai.title", { defaultValue: "HCAI 中转站" })}
+                    title={
+                      sidebarExpanded
+                        ? undefined
+                        : t("hcai.title", { defaultValue: "HCAI 中转站" })
+                    }
                   >
                     <span className="relative inline-flex shrink-0">
                       <ProviderIcon icon="hcai" name="HCAI" size={22} />
@@ -1294,18 +1415,35 @@ function App() {
                   </button>
                 </div>
 
-                <AppSwitcher
-                  activeApp={activeApp}
-                  onSwitch={(app) => {
-                    setActiveApp(app);
-                    // Always land on that app's provider list (also exits HCAI)
-                    setCurrentView("providers");
-                  }}
-                  visibleApps={visibleApps}
-                  orientation="vertical"
-                  expanded={sidebarExpanded}
-                  highlightActive={currentView === "providers"}
-                />
+                <div
+                  className={cn(
+                    "bg-muted rounded-xl p-1 gap-1",
+                    sidebarExpanded
+                      ? "flex w-full flex-col"
+                      : "flex flex-col items-center",
+                  )}
+                >
+                  <AppSwitcher
+                    activeApp={activeApp}
+                    onSwitch={(app) => {
+                      setActiveApp(app);
+                      // Always land on that app's provider list (also exits HCAI)
+                      // Clear any open add/edit/confirm overlays so we don't stay on
+                      // a stale editing page for the previous app's config.
+                      setIsAddOpen(false);
+                      setIsAddAppSelectorOpen(false);
+                      setAddForAppId(null);
+                      setEditingProvider(null);
+                      setConfirmAction(null);
+                      setCurrentView("providers");
+                    }}
+                    visibleApps={visibleApps}
+                    orientation="vertical"
+                    expanded={sidebarExpanded}
+                    highlightActive={currentView === "providers"}
+                    bare
+                  />
+                </div>
               </div>
 
               {/* Tools section */}
@@ -1324,7 +1462,33 @@ function App() {
                   )}
                 >
                   <Button
-                    variant="ghost"
+                    variant={currentView === "install" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCurrentView("install")}
+                    className={cn(
+                      "h-11",
+                      sidebarExpanded
+                        ? "w-full justify-start gap-2.5 px-3"
+                        : "w-10 p-0 justify-center",
+                      currentView === "install"
+                        ? "hover:bg-blue-500"
+                        : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
+                    )}
+                    title={
+                      sidebarExpanded
+                        ? undefined
+                        : t("sidebar.install", { defaultValue: "一键安装" })
+                    }
+                  >
+                    <Download className="flex-shrink-0 w-4 h-4" />
+                    {sidebarExpanded && (
+                      <span className="text-sm font-medium truncate">
+                        {t("sidebar.install", { defaultValue: "一键安装" })}
+                      </span>
+                    )}
+                  </Button>
+                  <Button
+                    variant={currentView === "usage" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCurrentView("usage")}
                     className={cn(
@@ -1333,10 +1497,10 @@ function App() {
                         ? "w-full justify-start gap-2.5 px-3"
                         : "w-10 p-0 justify-center",
                       currentView === "usage"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                        ? "hover:bg-blue-500"
+                        : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                     )}
-                    title={t("sidebar.usage")}
+                    title={sidebarExpanded ? undefined : t("sidebar.usage")}
                   >
                     <BarChart2 className="flex-shrink-0 w-4 h-4" />
                     {sidebarExpanded && (
@@ -1347,7 +1511,12 @@ function App() {
                   </Button>
                   {hasSkillsSupport && (
                     <Button
-                      variant="ghost"
+                      variant={
+                        currentView === "skills" ||
+                        currentView === "skillsDiscovery"
+                          ? "default"
+                          : "ghost"
+                      }
                       size="sm"
                       onClick={() => setCurrentView("skills")}
                       className={cn(
@@ -1357,10 +1526,10 @@ function App() {
                           : "w-10 p-0 justify-center",
                         currentView === "skills" ||
                           currentView === "skillsDiscovery"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                          ? "hover:bg-blue-500"
+                          : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                       )}
-                      title={t("sidebar.skills")}
+                      title={sidebarExpanded ? undefined : t("sidebar.skills")}
                     >
                       <Wrench className="flex-shrink-0 w-4 h-4" />
                       {sidebarExpanded && (
@@ -1371,7 +1540,7 @@ function App() {
                     </Button>
                   )}
                   <Button
-                    variant="ghost"
+                    variant={currentView === "prompts" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCurrentView("prompts")}
                     className={cn(
@@ -1380,10 +1549,10 @@ function App() {
                         ? "w-full justify-start gap-2.5 px-3"
                         : "w-10 p-0 justify-center",
                       currentView === "prompts"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                        ? "hover:bg-blue-500"
+                        : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                     )}
-                    title={t("sidebar.prompts")}
+                    title={sidebarExpanded ? undefined : t("sidebar.prompts")}
                   >
                     <Book className="w-4 h-4 flex-shrink-0" />
                     {sidebarExpanded && (
@@ -1394,7 +1563,7 @@ function App() {
                   </Button>
                   {hasSessionSupport && (
                     <Button
-                      variant="ghost"
+                      variant={currentView === "sessions" ? "default" : "ghost"}
                       size="sm"
                       onClick={() => setCurrentView("sessions")}
                       className={cn(
@@ -1403,10 +1572,12 @@ function App() {
                           ? "w-full justify-start gap-2.5 px-3"
                           : "w-10 p-0 justify-center",
                         currentView === "sessions"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                          ? "hover:bg-blue-500"
+                          : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                       )}
-                      title={t("sidebar.sessions")}
+                      title={
+                        sidebarExpanded ? undefined : t("sidebar.sessions")
+                      }
                     >
                       <History className="flex-shrink-0 w-4 h-4" />
                       {sidebarExpanded && (
@@ -1417,7 +1588,7 @@ function App() {
                     </Button>
                   )}
                   <Button
-                    variant="ghost"
+                    variant={currentView === "mcp" ? "default" : "ghost"}
                     size="sm"
                     onClick={() => setCurrentView("mcp")}
                     className={cn(
@@ -1426,10 +1597,10 @@ function App() {
                         ? "w-full justify-start gap-2.5 px-3"
                         : "w-10 p-0 justify-center",
                       currentView === "mcp"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                        ? "hover:bg-blue-500"
+                        : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                     )}
-                    title={t("sidebar.mcp")}
+                    title={sidebarExpanded ? undefined : t("sidebar.mcp")}
                   >
                     <span className="flex-shrink-0 inline-flex">
                       <McpIcon size={16} />
@@ -1459,7 +1630,12 @@ function App() {
                   )}
                 >
                   <Button
-                    variant="ghost"
+                    variant={
+                      currentView === "settings" &&
+                      settingsDefaultTab !== "about"
+                        ? "default"
+                        : "ghost"
+                    }
                     size="sm"
                     onClick={() => {
                       setSettingsDefaultTab("general");
@@ -1472,10 +1648,12 @@ function App() {
                         : "w-10 p-0 justify-center",
                       currentView === "settings" &&
                         settingsDefaultTab !== "about"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                        ? "hover:bg-blue-500"
+                        : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
                     )}
-                    title={t("sidebar.openSettings")}
+                    title={
+                      sidebarExpanded ? undefined : t("sidebar.openSettings")
+                    }
                   >
                     <Settings className="flex-shrink-0 w-4 h-4" />
                     {sidebarExpanded && (
@@ -1528,23 +1706,71 @@ function App() {
                   </motion.button>
                 )}
               </AnimatePresence>
-              <Button
-                onClick={() => setIsAddOpen(true)}
-                size={sidebarExpanded ? "sm" : "icon"}
-                className={cn(
-                  addActionButtonClass,
-                  sidebarExpanded &&
-                    "w-full rounded-full h-10 gap-1.5 px-3 shadow-lg shadow-orange-500/30",
-                )}
-                title={t("sidebar.addProvider")}
+              <Popover
+                open={isAddAppSelectorOpen}
+                onOpenChange={setIsAddAppSelectorOpen}
               >
-                <Plus className="w-4 h-4 flex-shrink-0" />
-                {sidebarExpanded && (
-                  <span className="text-sm font-medium whitespace-nowrap">
-                    {t("sidebar.addProvider")}
-                  </span>
-                )}
-              </Button>
+                <PopoverTrigger asChild>
+                  <Button
+                    size={sidebarExpanded ? "sm" : "icon"}
+                    className={cn(
+                      addActionButtonClass,
+                      sidebarExpanded &&
+                        "w-full rounded-full h-10 gap-1.5 px-3 shadow-lg shadow-orange-500/30",
+                    )}
+                    title={
+                      sidebarExpanded ? undefined : t("sidebar.addProvider")
+                    }
+                  >
+                    <Plus className="w-4 h-4 flex-shrink-0" />
+                    {sidebarExpanded && (
+                      <span className="text-sm font-medium whitespace-nowrap">
+                        {t("sidebar.addProvider")}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="start"
+                  sideOffset={8}
+                  className="w-52 p-1.5 z-[70]"
+                >
+                  <div className="text-[10px] font-semibold tracking-[0.5px] text-muted-foreground px-2 py-1">
+                    {t("sidebar.addProviderSelectApp", {
+                      defaultValue: "选择要添加供应商的应用",
+                    })}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    {ADDABLE_APPS.map((appId) => {
+                      const meta = ACTIVE_APP_META[appId];
+                      return (
+                        <button
+                          key={appId}
+                          type="button"
+                          onClick={() => {
+                            setIsAddAppSelectorOpen(false);
+                            setAddForAppId(appId);
+                            setIsAddOpen(true);
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                        >
+                          <span className="relative inline-flex shrink-0">
+                            <ProviderIcon
+                              icon={meta.icon}
+                              name={meta.name}
+                              size={16}
+                            />
+                          </span>
+                          <span className="truncate font-medium">
+                            {meta.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </aside>
         )}
@@ -1604,51 +1830,66 @@ function App() {
                       );
                     })()
                   ) : (
-                    <div className="flex items-center gap-2.5">
-                      {(() => {
-                        const meta = VIEW_HEADER_ICON[currentView];
-                        if (!meta) return null;
-                        if ("kind" in meta) {
+                    <div className="flex items-center">
+                      {currentView === "skillsDiscovery" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setCurrentView("skills")}
+                          className="rounded-lg shrink-0 mr-2"
+                          style={{ WebkitAppRegion: "no-drag" } as any}
+                          title={t("common.back", { defaultValue: "返回" })}
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <div className="flex items-center gap-2.5">
+                        {(() => {
+                          const meta = VIEW_HEADER_ICON[currentView];
+                          if (!meta) return null;
+                          if ("kind" in meta) {
+                            return (
+                              <span
+                                className={cn(
+                                  "inline-flex shrink-0 items-center justify-center",
+                                  meta.className,
+                                )}
+                              >
+                                <McpIcon size={22} />
+                              </span>
+                            );
+                          }
+                          const Icon = meta.Icon;
                           return (
-                            <span
+                            <Icon
                               className={cn(
-                                "inline-flex shrink-0 items-center justify-center",
+                                "h-[22px] w-[22px] shrink-0",
                                 meta.className,
                               )}
-                            >
-                              <McpIcon size={22} />
-                            </span>
+                              strokeWidth={2}
+                            />
                           );
-                        }
-                        const Icon = meta.Icon;
-                        return (
-                          <Icon
-                            className={cn(
-                              "h-[22px] w-[22px] shrink-0",
-                              meta.className,
-                            )}
-                            strokeWidth={2}
-                          />
-                        );
-                      })()}
-                      <h1 className="text-lg font-semibold tracking-tight">
-                        {currentView === "settings" && t("settings.title")}
-                        {currentView === "usage" && t("usage.title")}
-                        {currentView === "prompts" &&
-                          t("prompts.title", {
-                            appName: t(`apps.${sharedFeatureApp}`),
-                          })}
-                        {currentView === "skills" && t("skills.title")}
-                        {currentView === "skillsDiscovery" && t("skills.title")}
-                        {currentView === "mcp" && t("mcp.unifiedPanel.title")}
-                        {currentView === "agents" && t("agents.title")}
-                        {currentView === "universal" &&
-                          t("universalProvider.title", {
-                            defaultValue: "统一供应商",
-                          })}
-                        {currentView === "sessions" &&
-                          t("sessionManager.title")}
-                      </h1>
+                        })()}
+                        <h1 className="text-lg font-semibold tracking-tight">
+                          {currentView === "settings" && t("settings.title")}
+                          {currentView === "usage" && t("usage.title")}
+                          {currentView === "install" &&
+                            t("sidebar.install", { defaultValue: "一键安装" })}
+                          {currentView === "prompts" && t("sidebar.prompts")}
+                          {currentView === "skills" && t("skills.title")}
+                          {currentView === "skillsDiscovery" &&
+                            t("skills.title")}
+                          {currentView === "mcp" && t("mcp.unifiedPanel.title")}
+                          {currentView === "agents" && t("agents.title")}
+                          {currentView === "universal" &&
+                            t("universalProvider.title", {
+                              defaultValue: "统一供应商",
+                            })}
+                          {currentView === "sessions" &&
+                            t("sessionManager.title")}
+                        </h1>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1674,6 +1915,31 @@ function App() {
                           )}
                       </div>
                     )}
+                  {/* ChatGPT / Codex Desktop 启动按钮：放在 codex 配置右上角 */}
+                  {currentView === "providers" && activeApp === "codex" && (
+                    <div
+                      className="flex shrink-0 items-center"
+                      style={{ WebkitAppRegion: "no-drag" } as any}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleLaunchCodexDesktop()}
+                        className="hover:bg-black/5 dark:hover:bg-white/5 h-8 px-2.5"
+                        title={t("codex.launchDesktopTitle", {
+                          defaultValue:
+                            "启动 ChatGPT（Codex Desktop）：若已安装则完全退出并重启（用于加载最新配置）",
+                        })}
+                      >
+                        <Monitor className="w-4 h-4 mr-1.5" />
+                        <span className="text-xs">
+                          {t("codex.launchDesktopShort", {
+                            defaultValue: "启动 Desktop",
+                          })}
+                        </span>
+                      </Button>
+                    </div>
+                  )}
                   {currentView === "providers" &&
                     (settingsData?.showProfileSwitcher ?? true) && (
                       <div
@@ -1811,9 +2077,16 @@ function App() {
 
       <AddProviderDialog
         open={isAddOpen}
-        onOpenChange={setIsAddOpen}
-        appId={activeApp}
-        onSubmit={addProvider}
+        onOpenChange={(open) => {
+          setIsAddOpen(open);
+          if (!open) {
+            setAddForAppId(null);
+          }
+        }}
+        appId={addForAppId || activeApp}
+        onSubmit={async (data) => {
+          await handleAddProvider(data, addForAppId || undefined);
+        }}
         leftOffset={sidebarWidth}
         topOffset={dragBarHeight}
       />

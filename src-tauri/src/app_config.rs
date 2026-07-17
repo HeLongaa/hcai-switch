@@ -88,6 +88,8 @@ pub struct SkillApps {
     pub opencode: bool,
     #[serde(default)]
     pub hermes: bool,
+    #[serde(default)]
+    pub grok: bool,
 }
 
 impl SkillApps {
@@ -99,9 +101,9 @@ impl SkillApps {
             AppType::Gemini => self.gemini,
             AppType::OpenCode => self.opencode,
             AppType::Hermes => self.hermes,
+            AppType::Grok => self.grok,
             AppType::OpenClaw => false, // OpenClaw doesn't support Skills
             AppType::ClaudeDesktop => false,
-            AppType::Grok => false,
         }
     }
 
@@ -113,9 +115,9 @@ impl SkillApps {
             AppType::Gemini => self.gemini = enabled,
             AppType::OpenCode => self.opencode = enabled,
             AppType::Hermes => self.hermes = enabled,
+            AppType::Grok => self.grok = enabled,
             AppType::OpenClaw => {} // OpenClaw doesn't support Skills, ignore
             AppType::ClaudeDesktop => {} // Claude Desktop 3P profiles don't use CC Switch skill sync
-            AppType::Grok => {}
         }
     }
 
@@ -137,12 +139,15 @@ impl SkillApps {
         if self.hermes {
             apps.push(AppType::Hermes);
         }
+        if self.grok {
+            apps.push(AppType::Grok);
+        }
         apps
     }
 
     /// 检查是否所有应用都未启用
     pub fn is_empty(&self) -> bool {
-        !self.claude && !self.codex && !self.gemini && !self.opencode && !self.hermes
+        !self.claude && !self.codex && !self.gemini && !self.opencode && !self.hermes && !self.grok
     }
 
     /// 仅启用指定应用（其他应用设为禁用）
@@ -468,6 +473,7 @@ pub struct CommonConfigSnippets {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grok: Option<String>,
+
 }
 
 impl CommonConfigSnippets {

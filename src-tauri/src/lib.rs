@@ -1140,6 +1140,10 @@ pub fn run() {
                         "OpenCode usage initial sync",
                         crate::services::session_usage_opencode::sync_opencode_usage(db),
                     );
+                    run_step(
+                        "Grok usage initial sync",
+                        crate::services::session_usage_grok::sync_grok_usage(db),
+                    );
 
                     // 定期同步
                     let mut interval = tokio::time::interval(std::time::Duration::from_secs(
@@ -1163,6 +1167,10 @@ pub fn run() {
                         run_step(
                             "OpenCode usage periodic sync",
                             crate::services::session_usage_opencode::sync_opencode_usage(db),
+                        );
+                        run_step(
+                            "Grok usage periodic sync",
+                            crate::services::session_usage_grok::sync_grok_usage(db),
                         );
                     }
                 });
@@ -1266,6 +1274,15 @@ pub fn run() {
             commands::check_app_update_available,
             commands::check_for_updates,
             commands::is_portable_mode,
+            commands::launch_codex_desktop,
+            commands::get_codex_desktop_latest,
+            commands::get_codex_desktop_install_status,
+            commands::download_codex_desktop,
+            commands::open_codex_desktop_installer,
+            commands::get_claude_desktop_latest,
+            commands::get_claude_desktop_install_status,
+            commands::download_claude_desktop,
+            commands::open_claude_desktop_installer,
             commands::copy_text_to_clipboard,
             commands::get_claude_plugin_status,
             commands::read_claude_plugin_config,

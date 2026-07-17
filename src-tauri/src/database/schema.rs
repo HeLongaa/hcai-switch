@@ -95,6 +95,7 @@ impl Database {
             enabled_gemini BOOLEAN NOT NULL DEFAULT 0,
             enabled_opencode BOOLEAN NOT NULL DEFAULT 0,
             enabled_hermes BOOLEAN NOT NULL DEFAULT 0,
+            enabled_grok BOOLEAN NOT NULL DEFAULT 0,
             installed_at INTEGER NOT NULL DEFAULT 0,
             content_hash TEXT,
             updated_at INTEGER NOT NULL DEFAULT 0
@@ -484,6 +485,11 @@ impl Database {
                         log::info!("迁移数据库从 v12 到 v13（记录输入 token 缓存语义）");
                         Self::migrate_v12_to_v13(conn)?;
                         Self::set_user_version(conn, 13)?;
+                    }
+                    13 => {
+                        log::info!("迁移数据库从 v13 到 v14（Grok Skills 支持）");
+                        Self::migrate_v13_to_v14(conn)?;
+                        Self::set_user_version(conn, 14)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -1351,6 +1357,21 @@ impl Database {
                 "INTEGER NOT NULL DEFAULT 0",
             )?;
         }
+        Ok(())
+    }
+
+    /// v13 -> v14：为 skills 表添加 enabled_grok 列（Grok Build Skills 管理支持）
+    fn migrate_v13_to_v14(conn: &Connection) -> Result<(), AppError> {
+        if Self::table_exists(conn, "skills")? {
+            Self::add_column_if_missing(
+                conn,
+                "skills",
+                "enabled_grok",
+                "BOOLEAN NOT NULL DEFAULT 0",
+            )?;
+        }
+
+        log::info!("v13 -> v14 迁移完成：已添加 Grok Skills 支持");
         Ok(())
     }
 

@@ -50,12 +50,12 @@ export const SessionMessageItem = memo(function SessionMessageItem({
   return (
     <div
       className={cn(
-        "rounded-lg border px-3 py-2.5 relative group transition-shadow min-w-0",
+        "rounded-xl border px-4 py-3 relative group transition-all min-w-0 shadow-sm max-w-[min(100%,_42rem)]",
         message.role.toLowerCase() === "user"
-          ? "bg-primary/5 border-primary/20 ml-8"
+          ? "bg-primary/5 border-primary/25 ml-10"
           : message.role.toLowerCase() === "assistant"
-            ? "bg-blue-500/5 border-blue-500/20 mr-8"
-            : "bg-muted/40 border-border/60",
+            ? "bg-blue-500/5 border-blue-500/25 mr-10"
+            : "bg-muted/50 border-border/70",
         isActive && "ring-2 ring-primary ring-offset-2",
       )}
     >
@@ -64,10 +64,10 @@ export const SessionMessageItem = memo(function SessionMessageItem({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-2 right-2 size-6 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="absolute top-2.5 right-2.5 size-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg hover:bg-background/80"
             onClick={() => onCopy(message.content)}
           >
-            <Copy className="size-3" />
+            <Copy className="size-3.5" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -76,17 +76,17 @@ export const SessionMessageItem = memo(function SessionMessageItem({
           })}
         </TooltipContent>
       </Tooltip>
-      <div className="flex items-center justify-between text-xs mb-1.5 pr-6">
-        <span className={cn("font-semibold", getRoleTone(message.role))}>
+      <div className="flex items-center justify-between text-xs mb-2 pr-8">
+        <span className={cn("font-semibold tracking-tight", getRoleTone(message.role))}>
           {getRoleLabel(message.role, t)}
         </span>
         {message.ts && (
-          <span className="text-muted-foreground">
+          <span className="text-muted-foreground tabular-nums">
             {formatTimestamp(message.ts)}
           </span>
         )}
       </div>
-      <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-relaxed min-w-0">
+      <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13.5px] leading-relaxed min-w-0">
         {searchQuery
           ? highlightText(displayContent, searchQuery)
           : displayContent}
@@ -96,7 +96,7 @@ export const SessionMessageItem = memo(function SessionMessageItem({
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1 mt-2 px-1.5 py-0.5 -mx-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           {expanded ? (
             <>
@@ -111,7 +111,7 @@ export const SessionMessageItem = memo(function SessionMessageItem({
               {t("sessionManager.expandContent", {
                 defaultValue: "展开完整内容",
               })}
-              <span className="text-muted-foreground/60">
+              <span className="text-muted-foreground/70">
                 ({Math.round(message.content.length / 1000)}k)
               </span>
             </>

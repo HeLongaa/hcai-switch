@@ -47,10 +47,10 @@ export function SessionItem({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-lg px-3 py-2.5 transition-all group",
+        "flex items-start gap-2 rounded-xl px-3.5 py-3 transition-all group border",
         isSelected
-          ? "bg-primary/10 border border-primary/30"
-          : "hover:bg-muted/60 border border-transparent",
+          ? "bg-primary/5 border-primary/40 border-l-[3px] border-l-primary shadow-sm"
+          : "hover:bg-muted/70 border-transparent hover:border-border/60",
       )}
     >
       {selectionMode && (
@@ -70,7 +70,7 @@ export function SessionItem({
         onClick={() => onSelect(sessionKey)}
         className="min-w-0 flex-1 text-left"
       >
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2.5 mb-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="shrink-0">
@@ -85,18 +85,18 @@ export function SessionItem({
               {getProviderLabel(session.providerId, t)}
             </TooltipContent>
           </Tooltip>
-          <span className="text-sm font-medium line-clamp-2 flex-1">
+          <span className="text-[13.5px] font-semibold leading-snug line-clamp-2 flex-1 pr-1">
             {searchQuery ? highlightText(title, searchQuery) : title}
           </span>
           <ChevronRight
             className={cn(
-              "size-4 text-muted-foreground/50 shrink-0 transition-transform",
+              "size-4 text-muted-foreground/60 shrink-0 transition-transform",
               isSelected && "text-primary rotate-90",
             )}
           />
         </div>
 
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pl-0.5">
           <Clock className="size-3" />
           <span>
             {lastActive

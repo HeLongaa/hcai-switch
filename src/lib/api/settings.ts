@@ -276,6 +276,66 @@ export const settingsApi = {
     return await invoke("probe_tool_installations", { tools });
   },
 
+  // Codex Desktop 下载与更新（参考 Codex-App-Manager 镜像流程）
+  async getCodexDesktopLatest(): Promise<{
+    version: string;
+    build?: number;
+    downloadUrl: string;
+    size: number;
+    arch: string;
+    notes?: string;
+    fullSize: number;
+    hasDeltas: boolean;
+  }> {
+    return await invoke("get_codex_desktop_latest");
+  },
+
+  async getCodexDesktopInstallStatus(): Promise<{
+    installed: boolean;
+    version?: string;
+    build?: number;
+    path?: string;
+  }> {
+    return await invoke("get_codex_desktop_install_status");
+  },
+
+  async downloadCodexDesktop(): Promise<string> {
+    return await invoke("download_codex_desktop");
+  },
+
+  async openCodexDesktopInstaller(path: string): Promise<void> {
+    return await invoke("open_codex_desktop_installer", { path });
+  },
+
+  // Claude Desktop 下载与更新（优先 mirror lumocore，失败 fallback 官方）
+  async getClaudeDesktopLatest(): Promise<{
+    version: string;
+    downloadUrl: string;
+    size?: number;
+    arch: string;
+    notes?: string;
+  }> {
+    return await invoke("get_claude_desktop_latest");
+  },
+
+  async getClaudeDesktopInstallStatus(): Promise<{
+    installed: boolean;
+    version?: string;
+    build?: number;
+    path?: string;
+  }> {
+    return await invoke("get_claude_desktop_install_status");
+  },
+
+  async downloadClaudeDesktop(): Promise<string> {
+    return await invoke("download_claude_desktop");
+  },
+
+  async openClaudeDesktopInstaller(path: string): Promise<void> {
+    // 复用通用打开（或专用命令）
+    return await invoke("open_claude_desktop_installer", { path });
+  },
+
   async getRectifierConfig(): Promise<RectifierConfig> {
     return await invoke("get_rectifier_config");
   },

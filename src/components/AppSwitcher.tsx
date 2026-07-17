@@ -103,8 +103,8 @@ export function AppSwitcher({
               ? "h-9 w-9 justify-center"
               : "h-9 justify-center px-3 gap-2",
           isActive
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground hover:bg-background/60",
+            ? "bg-blue-500 text-white shadow-sm hover:bg-blue-500 hover:text-white"
+            : "text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10",
         )}
         title={useTooltip || !isVertical ? appDisplayName[app] : undefined}
       >
@@ -118,7 +118,7 @@ export function AppSwitcher({
             <span
               className={cn(
                 "absolute -bottom-0.5 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-background bg-muted",
-                isActive && "bg-background",
+                isActive && "border-white/30 bg-blue-600",
               )}
               style={
                 badgeConfig?.offsetY

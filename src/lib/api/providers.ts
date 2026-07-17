@@ -168,6 +168,13 @@ export const providersApi = {
   async getOpenCodeLiveProviderIds(): Promise<string[]> {
     return await invoke("get_opencode_live_provider_ids");
   },
+
+  /**
+   * 启动 Codex Desktop（若已安装则完全退出后重启，否则抛出未安装错误）
+   */
+  async launchCodexDesktop(): Promise<void> {
+    return await invoke("launch_codex_desktop");
+  },
 };
 
 // ============================================================================

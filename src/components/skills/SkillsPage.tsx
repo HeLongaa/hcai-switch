@@ -47,6 +47,10 @@ export type SkillsPageSource = "repos" | "skillssh";
 interface SkillsPageProps {
   initialApp?: AppId;
   onSourceChange?: (source: SkillsPageSource) => void;
+  /** Leave space for app sidebar (px) */
+  leftOffset?: number;
+  /** Top content inset matching App dragBarHeight */
+  topOffset?: number;
 }
 
 export interface SkillsPageHandle {
@@ -91,7 +95,7 @@ const SKILLSSH_PAGE_SIZE = 20;
  * 用于浏览和安装来自仓库或 skills.sh 的 Skills
  */
 export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
-  ({ initialApp = "claude", onSourceChange }, ref) => {
+  ({ initialApp = "claude", onSourceChange, leftOffset = 0, topOffset }, ref) => {
     const { t } = useTranslation();
     const [repoManagerOpen, setRepoManagerOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -653,6 +657,8 @@ export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
             onAdd={handleAddRepo}
             onRemove={handleRemoveRepo}
             onClose={() => setRepoManagerOpen(false)}
+            leftOffset={leftOffset}
+            topOffset={topOffset}
           />
         )}
       </div>

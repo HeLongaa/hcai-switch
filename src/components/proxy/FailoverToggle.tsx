@@ -20,6 +20,14 @@ interface FailoverToggleProps {
   activeApp: AppId;
 }
 
+const APP_LABEL: Record<AppId, string> = {
+  claude: "Claude",
+  "claude-desktop": "Claude Desktop",
+  codex: "Codex",
+  opencode: "OpenCode",
+  grok: "Grok Build",
+};
+
 export function FailoverToggle({ className, activeApp }: FailoverToggleProps) {
   const { t } = useTranslation();
   const { data: isEnabled = false, isLoading } =
@@ -33,12 +41,7 @@ export function FailoverToggle({ className, activeApp }: FailoverToggleProps) {
     setEnabled.mutate({ appType: activeApp, enabled: checked });
   };
 
-  const appLabel =
-    activeApp === "claude"
-      ? "Claude"
-      : activeApp === "codex"
-        ? "Codex"
-        : "Gemini";
+  const appLabel = APP_LABEL[activeApp] ?? activeApp;
 
   const tooltipText = !takeoverEnabled
     ? t("failover.tooltip.takeoverRequired", {

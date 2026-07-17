@@ -17,6 +17,14 @@ interface ProxyToggleProps {
   activeApp: AppId;
 }
 
+const APP_LABEL: Record<AppId, string> = {
+  claude: "Claude",
+  "claude-desktop": "Claude Desktop",
+  codex: "Codex",
+  opencode: "OpenCode",
+  grok: "Grok Build",
+};
+
 export function ProxyToggle({ className, activeApp }: ProxyToggleProps) {
   const { t } = useTranslation();
   const { isRunning, takeoverStatus, setTakeoverForApp, isPending, status } =
@@ -32,12 +40,7 @@ export function ProxyToggle({ className, activeApp }: ProxyToggleProps) {
 
   const takeoverEnabled = takeoverStatus?.[activeApp] || false;
 
-  const appLabel =
-    activeApp === "claude"
-      ? "Claude"
-      : activeApp === "codex"
-        ? "Codex"
-        : "OpenCode";
+  const appLabel = APP_LABEL[activeApp] ?? activeApp;
 
   const tooltipText = takeoverEnabled
     ? isRunning

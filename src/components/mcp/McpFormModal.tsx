@@ -33,6 +33,10 @@ interface McpFormModalProps {
   existingIds?: string[];
   defaultFormat?: "json" | "toml";
   defaultEnabledApps?: AppId[];
+  /** Leave space for app sidebar (px) */
+  leftOffset?: number;
+  /** Top content inset matching App dragBarHeight */
+  topOffset?: number;
 }
 
 const McpFormModal: React.FC<McpFormModalProps> = ({
@@ -42,6 +46,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
   onClose,
   existingIds = [],
   defaultFormat = "json",
+  leftOffset = 0,
+  topOffset,
   defaultEnabledApps = ["claude", "codex", "opencode"],
 }) => {
   const { t } = useTranslation();
@@ -417,6 +423,8 @@ const McpFormModal: React.FC<McpFormModalProps> = ({
         isOpen={true}
         title={getFormTitle()}
         onClose={onClose}
+        leftOffset={leftOffset}
+        topOffset={topOffset}
         footer={
           <Button
             type="button"

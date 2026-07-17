@@ -20,10 +20,13 @@ export const APP_IDS: AppId[] = [
 ];
 
 /** App IDs shown in Skills panels */
-export const SKILLS_APP_IDS: AppId[] = ["claude", "codex", "opencode"];
+export const SKILLS_APP_IDS: AppId[] = ["claude", "codex", "opencode", "grok"];
 
-/** App IDs shown in MCP panels */
-export const MCP_APP_IDS: AppId[] = [...SKILLS_APP_IDS];
+/** App IDs shown in MCP panels (Grok MCP is managed via ~/.grok/config.toml, not here) */
+export const MCP_APP_IDS: AppId[] = ["claude", "codex", "opencode"];
+
+/** App IDs shown in Prompts panels (Claude Desktop does not support prompts) */
+export const PROMPTS_APP_IDS: AppId[] = ["claude", "codex", "opencode", "grok"];
 
 export const APP_ICON_MAP: Record<AppId, AppConfig> = {
   claude: {
