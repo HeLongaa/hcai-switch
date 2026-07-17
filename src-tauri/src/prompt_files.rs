@@ -33,10 +33,7 @@ pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
         AppType::Claude => "CLAUDE.md",
         AppType::Codex => "AGENTS.md",
         AppType::Gemini => "GEMINI.md",
-        AppType::OpenCode
-        | AppType::OpenClaw
-        | AppType::Hermes
-        | AppType::Grok => "AGENTS.md",
+        AppType::OpenCode | AppType::OpenClaw | AppType::Hermes | AppType::Grok => "AGENTS.md",
         AppType::ClaudeDesktop => unreachable!("handled above"),
     };
 

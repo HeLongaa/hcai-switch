@@ -789,7 +789,10 @@ export function SessionManagerPage({ appId }: { appId: string }) {
       >
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
           {/* 主内容区域 - 左右分栏 */}
-          <div className="flex-1 overflow-hidden flex min-w-0 gap-5 md:gap-6" style={{ minWidth: 900 }}>
+          <div
+            className="flex-1 overflow-hidden flex min-w-0 gap-5 md:gap-6"
+            style={{ minWidth: 900 }}
+          >
             {/* 左侧会话列表 - 响应式固定宽度，小窗口不挤 */}
             <Card className="flex flex-col w-[330px] shrink-0 min-h-0 min-w-0 overflow-hidden">
               <CardHeader className="py-2.5 px-3 sm:py-3 sm:px-4 border-b">

@@ -45,8 +45,9 @@ export function DashboardDateRangePicker({
   className,
 }: DashboardDateRangePickerProps) {
   const [open, setOpen] = useState(false);
-  const [draftPreset, setDraftPreset] =
-    useState<HcaiDashboardRangePreset>(value.preset);
+  const [draftPreset, setDraftPreset] = useState<HcaiDashboardRangePreset>(
+    value.preset,
+  );
   const [draftStart, setDraftStart] = useState(value.startDate);
   const [draftEnd, setDraftEnd] = useState(value.endDate);
   const [localError, setLocalError] = useState<string | null>(null);

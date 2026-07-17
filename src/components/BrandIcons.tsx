@@ -11,7 +11,6 @@ import OpenClawSvg from "@/icons/extracted/claw.svg?url";
 import GrokSvg from "@/icons/extracted/grok.svg?url";
 import OpenCodeSvg from "@/icons/extracted/opencode-logo-light.svg?url";
 
-
 export function ClaudeIcon({ size = 16, className = "" }: IconProps) {
   return (
     <img

@@ -353,9 +353,7 @@ fn parse_oauth_callback_tokens(url_str: &str) -> Option<OAuthTokenBundle> {
     // 允许用户只粘贴 hash / query 片段
     let normalized = if trimmed.contains("://") {
         trimmed.to_string()
-    } else if trimmed.starts_with('#') {
-        format!("https://ai.hctopup.com{OAUTH_CALLBACK_REDIRECT}{trimmed}")
-    } else if trimmed.starts_with('?') {
+    } else if trimmed.starts_with('#') || trimmed.starts_with('?') {
         format!("https://ai.hctopup.com{OAUTH_CALLBACK_REDIRECT}{trimmed}")
     } else {
         format!("https://ai.hctopup.com{OAUTH_CALLBACK_REDIRECT}#{trimmed}")

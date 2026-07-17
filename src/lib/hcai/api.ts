@@ -32,7 +32,10 @@ function todayInShanghai(): string {
 }
 
 /** YYYY-MM-DD in given IANA timezone */
-export function formatDateInTimezone(date: Date, timeZone = DEFAULT_TZ): string {
+export function formatDateInTimezone(
+  date: Date,
+  timeZone = DEFAULT_TZ,
+): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -242,15 +245,19 @@ export async function fetchHcaiUsageErrors(
     timezone?: string;
   },
 ): Promise<HcaiUsageErrorList> {
-  return hcaiAuthedGet<HcaiUsageErrorList>("/api/v1/usage/errors", accessToken, {
-    page: opts.page ?? 1,
-    page_size: opts.pageSize ?? 20,
-    start_date: opts.startDate,
-    end_date: opts.endDate,
-    sort_by: opts.sortBy ?? "created_at",
-    sort_order: opts.sortOrder ?? "desc",
-    timezone: opts.timezone ?? DEFAULT_TZ,
-  });
+  return hcaiAuthedGet<HcaiUsageErrorList>(
+    "/api/v1/usage/errors",
+    accessToken,
+    {
+      page: opts.page ?? 1,
+      page_size: opts.pageSize ?? 20,
+      start_date: opts.startDate,
+      end_date: opts.endDate,
+      sort_by: opts.sortBy ?? "created_at",
+      sort_order: opts.sortOrder ?? "desc",
+      timezone: opts.timezone ?? DEFAULT_TZ,
+    },
+  );
 }
 
 /** 错误请求详情 `GET /api/v1/usage/errors/:id`（含 error_body） */
@@ -390,11 +397,9 @@ export async function fetchHcaiAvailableGroups(
   accessToken: string,
   timezone = DEFAULT_TZ,
 ): Promise<HcaiGroup[]> {
-  return hcaiAuthedGet<HcaiGroup[]>(
-    "/api/v1/groups/available",
-    accessToken,
-    { timezone },
-  );
+  return hcaiAuthedGet<HcaiGroup[]>("/api/v1/groups/available", accessToken, {
+    timezone,
+  });
 }
 
 /** 创建密钥：仅 name + group_id */

@@ -5,9 +5,9 @@
 //!   - events.jsonl
 //!   - summary.json
 
+use super::utils::{extract_text, parse_timestamp_to_ms, truncate_summary, TITLE_MAX_CHARS};
 use crate::grok_config::get_grok_config_dir;
 use crate::session_manager::{SessionMessage, SessionMeta};
-use super::utils::{extract_text, parse_timestamp_to_ms, truncate_summary, TITLE_MAX_CHARS};
 use serde_json::Value;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};

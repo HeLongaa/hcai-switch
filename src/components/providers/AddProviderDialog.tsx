@@ -71,8 +71,7 @@ export function AddProviderDialog({
   }, [appId, t]);
 
   // OpenCode and Claude Desktop don't support universal providers
-  const showUniversalTab =
-    appId !== "opencode" && appId !== "claude-desktop";
+  const showUniversalTab = appId !== "opencode" && appId !== "claude-desktop";
   const [activeTab, setActiveTab] = useState<"app-specific" | "universal">(
     "app-specific",
   );

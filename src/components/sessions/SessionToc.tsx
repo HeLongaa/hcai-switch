@@ -54,7 +54,9 @@ export function SessionTocSidebar({
               <span className="shrink-0 mt-px w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] flex items-center justify-center font-semibold tabular-nums">
                 {tocIndex + 1}
               </span>
-              <span className="line-clamp-3 leading-snug text-left">{item.preview}</span>
+              <span className="line-clamp-3 leading-snug text-left">
+                {item.preview}
+              </span>
             </button>
           ))}
         </div>

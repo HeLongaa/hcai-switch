@@ -228,8 +228,11 @@ export function ProviderCard({
   const typeBadge = useMemo(() => {
     const lowerName = (provider.name || "").toLowerCase();
     const lowerIcon = (provider.icon || "").toLowerCase();
-    const configStr = JSON.stringify(provider.settingsConfig || "").toLowerCase();
-    const lowerUrl = `${provider.websiteUrl || ""} ${displayUrl || ""}`.toLowerCase();
+    const configStr = JSON.stringify(
+      provider.settingsConfig || "",
+    ).toLowerCase();
+    const lowerUrl =
+      `${provider.websiteUrl || ""} ${displayUrl || ""}`.toLowerCase();
 
     const isGrokOfficial =
       lowerName.includes("xai official") ||
@@ -382,7 +385,7 @@ export function ProviderCard({
                 <span
                   className={cn(
                     "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold shadow-sm",
-                    typeBadge.cls
+                    typeBadge.cls,
                   )}
                 >
                   {typeBadge.text}

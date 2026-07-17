@@ -15,7 +15,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { settingsApi } from "@/lib/api";
 import { useTauriEvent } from "@/hooks/useTauriEvent";
-import { ClaudeIcon, CodexIcon, ChatGPTIcon, GrokIcon, OpenCodeIcon } from "@/components/BrandIcons";
+import {
+  ClaudeIcon,
+  CodexIcon,
+  ChatGPTIcon,
+  GrokIcon,
+  OpenCodeIcon,
+} from "@/components/BrandIcons";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -166,14 +172,20 @@ let claudeDesktopCache: { status: any; latest: any; at: number } | null = null;
 export default function InstallToolsPage() {
   const { t } = useTranslation();
   const [installing, setInstalling] = useState<Record<string, boolean>>({});
-  const [desktopStatuses, setDesktopStatuses] = useState<Record<string, DesktopStatus>>({});
-  const [cliStatuses, setCliStatuses] = useState<Record<string, CliToolStatus>>({});
+  const [desktopStatuses, setDesktopStatuses] = useState<
+    Record<string, DesktopStatus>
+  >({});
+  const [cliStatuses, setCliStatuses] = useState<Record<string, CliToolStatus>>(
+    {},
+  );
   // 来自后端的实时进度（用于进度条 + 状态消息）
   const [installProgress, setInstallProgress] = useState<
     Record<string, { percent?: number; message?: string; phase?: string }>
   >({});
   // 安装冲突诊断
-  const [toolDiagnostics, setToolDiagnostics] = useState<Record<string, any[]>>({});
+  const [toolDiagnostics, setToolDiagnostics] = useState<Record<string, any[]>>(
+    {},
+  );
   const [isDiagnosing, setIsDiagnosing] = useState(false);
 
   // 手动安装命令对话框（从设置页移动到此处）
@@ -212,7 +224,9 @@ export default function InstallToolsPage() {
     },
     {
       title: "Codex",
-      apps: INSTALLABLES.filter((app) => ["codex", "codex-desktop"].includes(app.key)),
+      apps: INSTALLABLES.filter((app) =>
+        ["codex", "codex-desktop"].includes(app.key),
+      ),
     },
     {
       title: "Grok",
@@ -391,7 +405,9 @@ export default function InstallToolsPage() {
         if (!cliVersionsCache) {
           cliVersionsCache = { data: [v], at: now };
         } else {
-          const idx = cliVersionsCache.data.findIndex((d: any) => d.name === key);
+          const idx = cliVersionsCache.data.findIndex(
+            (d: any) => d.name === key,
+          );
           if (idx >= 0) {
             cliVersionsCache.data[idx] = v;
           } else {
@@ -445,7 +461,9 @@ export default function InstallToolsPage() {
         try {
           const vers = await settingsApi.getToolVersions([...CLI_TOOLS]);
           cliVersionsCache = { data: vers || [], at: Date.now() };
-          (vers || []).forEach((v: any) => applyCliVersionToStatuses(v.name, v));
+          (vers || []).forEach((v: any) =>
+            applyCliVersionToStatuses(v.name, v),
+          );
         } catch {
           /* 静默 */
         }
@@ -504,16 +522,25 @@ export default function InstallToolsPage() {
       }
       setToolDiagnostics(next);
       if (conflictCount === 0) {
-        toast.info(t("settings.toolDiagnoseNoConflict", { defaultValue: "未检测到安装冲突" }), { closeButton: true });
+        toast.info(
+          t("settings.toolDiagnoseNoConflict", {
+            defaultValue: "未检测到安装冲突",
+          }),
+          { closeButton: true },
+        );
       } else {
         toast.warning(
-          t("settings.toolDiagnoseConflictsFound", { defaultValue: `检测到 ${conflictCount} 个工具存在多处安装冲突` }),
-          { closeButton: true }
+          t("settings.toolDiagnoseConflictsFound", {
+            defaultValue: `检测到 ${conflictCount} 个工具存在多处安装冲突`,
+          }),
+          { closeButton: true },
         );
       }
     } catch (error) {
       console.error("[InstallToolsPage] Diagnose failed", error);
-      toast.error(t("settings.toolDiagnoseFailed", { defaultValue: "诊断安装冲突失败" }));
+      toast.error(
+        t("settings.toolDiagnoseFailed", { defaultValue: "诊断安装冲突失败" }),
+      );
     } finally {
       setIsDiagnosing(false);
     }
@@ -522,16 +549,28 @@ export default function InstallToolsPage() {
   const handleCopyInstallCommands = async (commands: string) => {
     try {
       await navigator.clipboard.writeText(commands);
-      toast.success(t("settings.installCommandsCopied", { defaultValue: "安装命令已复制" }), {
-        closeButton: true,
-      });
+      toast.success(
+        t("settings.installCommandsCopied", { defaultValue: "安装命令已复制" }),
+        {
+          closeButton: true,
+        },
+      );
     } catch (error) {
-      console.error("[InstallToolsPage] Failed to copy install commands", error);
-      toast.error(t("settings.installCommandsCopyFailed", { defaultValue: "复制失败，请手动复制。" }));
+      console.error(
+        "[InstallToolsPage] Failed to copy install commands",
+        error,
+      );
+      toast.error(
+        t("settings.installCommandsCopyFailed", {
+          defaultValue: "复制失败，请手动复制。",
+        }),
+      );
     }
   };
 
-  const currentInstallPlatform: InstallCommandPlatform = isWindows() ? "windows" : "posix";
+  const currentInstallPlatform: InstallCommandPlatform = isWindows()
+    ? "windows"
+    : "posix";
 
   // 初次加载：桌面和 CLI 都使用带缓存的加载（SWR，避免重复网络+状态探测）
   useEffect(() => {
@@ -542,30 +581,38 @@ export default function InstallToolsPage() {
 
   const getActionLabel = (app: InstallableApp) => {
     const key = app.key;
-    if (key === "codex-desktop" || key === "claude-desktop" || key === "codex" || key === "claude" || key === "opencode" || key === "grok") {
-      const st = key === "codex-desktop"
-        ? desktopStatuses["codex-desktop"]
-        : key === "claude-desktop"
-        ? desktopStatuses["claude-desktop"]
-        : key === "codex"
-        ? cliStatuses["codex"]
-        : key === "claude"
-        ? cliStatuses["claude"]
-        : key === "opencode"
-        ? cliStatuses["opencode"]
-        : key === "grok"
-        ? cliStatuses["grok"]
-        : undefined;
+    if (
+      key === "codex-desktop" ||
+      key === "claude-desktop" ||
+      key === "codex" ||
+      key === "claude" ||
+      key === "opencode" ||
+      key === "grok"
+    ) {
+      const st =
+        key === "codex-desktop"
+          ? desktopStatuses["codex-desktop"]
+          : key === "claude-desktop"
+            ? desktopStatuses["claude-desktop"]
+            : key === "codex"
+              ? cliStatuses["codex"]
+              : key === "claude"
+                ? cliStatuses["claude"]
+                : key === "opencode"
+                  ? cliStatuses["opencode"]
+                  : key === "grok"
+                    ? cliStatuses["grok"]
+                    : undefined;
       const installed = !!st?.installed;
       const curVer = st?.version;
       const latVer = st?.latestVersion;
       const curB = (st as any)?.build;
       const latB = (st as any)?.latestBuild;
 
-      const needsUpdate = installed && (
-        (latB != null && curB != null && latB > curB) ||
-        (latVer && curVer && latVer !== curVer)
-      );
+      const needsUpdate =
+        installed &&
+        ((latB != null && curB != null && latB > curB) ||
+          (latVer && curVer && latVer !== curVer));
 
       if (needsUpdate) {
         return t("common.update", { defaultValue: "更新" });
@@ -638,20 +685,26 @@ export default function InstallToolsPage() {
     const isClaudeCli = app.key === "claude";
     const isOpencodeCli = app.key === "opencode";
     const isGrokCli = app.key === "grok";
-    const isSpecialVersionTool = isCodexDesktop || isClaudeDesktop || isCodexCli || isClaudeCli || isOpencodeCli || isGrokCli;
+    const isSpecialVersionTool =
+      isCodexDesktop ||
+      isClaudeDesktop ||
+      isCodexCli ||
+      isClaudeCli ||
+      isOpencodeCli ||
+      isGrokCli;
     const st = isCodexDesktop
       ? desktopStatuses["codex-desktop"]
       : isClaudeDesktop
-      ? desktopStatuses["claude-desktop"]
-      : isCodexCli
-      ? cliStatuses["codex"]
-      : isClaudeCli
-      ? cliStatuses["claude"]
-      : isOpencodeCli
-      ? cliStatuses["opencode"]
-      : isGrokCli
-      ? cliStatuses["grok"]
-      : undefined;
+        ? desktopStatuses["claude-desktop"]
+        : isCodexCli
+          ? cliStatuses["codex"]
+          : isClaudeCli
+            ? cliStatuses["claude"]
+            : isOpencodeCli
+              ? cliStatuses["opencode"]
+              : isGrokCli
+                ? cliStatuses["grok"]
+                : undefined;
     const statusLoading = !!st?.loading;
 
     let needsUpdate = false;
@@ -679,7 +732,7 @@ export default function InstallToolsPage() {
         key={app.key}
         className={cn(
           "glass-card rounded-xl border border-border/60 p-4 flex items-center gap-4",
-          "transition-all hover:border-border hover:shadow-sm"
+          "transition-all hover:border-border hover:shadow-sm",
         )}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -688,27 +741,41 @@ export default function InstallToolsPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-base">{app.label}</span>
               {app.subtitle && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getSubtitleClass(app.subtitle)}`}>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getSubtitleClass(app.subtitle)}`}
+                >
                   {app.subtitle}
                 </span>
               )}
               {isSpecialVersionTool && st && (
                 <>
                   {st.installed ? (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getInstalledBadgeClass()}`}>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getInstalledBadgeClass()}`}
+                    >
                       已安装 {st.version ? `v${st.version}` : ""}
-                      {isCodexDesktop && (st as any).build ? ` (b${(st as any).build})` : ""}
+                      {isCodexDesktop && (st as any).build
+                        ? ` (b${(st as any).build})`
+                        : ""}
                     </span>
                   ) : (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getNotInstalledBadgeClass()}`}>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getNotInstalledBadgeClass()}`}
+                    >
                       未安装
                     </span>
                   )}
                   {st.latestVersion && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getLatestBadgeClass()}`}>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${getLatestBadgeClass()}`}
+                    >
                       最新 v{st.latestVersion}
-                      {isCodexDesktop && (st as any).latestBuild ? ` (b${(st as any).latestBuild})` : ""}
-                      {isCodexDesktop && (st as any).fullSize ? ` · ${((st as any).fullSize / 1024 / 1024).toFixed(0)}MB` : ""}
+                      {isCodexDesktop && (st as any).latestBuild
+                        ? ` (b${(st as any).latestBuild})`
+                        : ""}
+                      {isCodexDesktop && (st as any).fullSize
+                        ? ` · ${((st as any).fullSize / 1024 / 1024).toFixed(0)}MB`
+                        : ""}
                     </span>
                   )}
                   {isCodexDesktop && (st as any).hasDeltas && (
@@ -735,26 +802,36 @@ export default function InstallToolsPage() {
             )}
 
             {/* 安装冲突诊断结果 */}
-            {toolDiagnostics[app.key] && toolDiagnostics[app.key].length > 0 && (
-              <div className="mt-1.5 space-y-1 rounded-md border border-yellow-500/20 bg-yellow-500/5 p-2 text-[10px]">
-                <div className="font-medium text-yellow-600 dark:text-yellow-400">
-                  {t("settings.toolConflictTitle", { defaultValue: "检测到多处安装" })}
+            {toolDiagnostics[app.key] &&
+              toolDiagnostics[app.key].length > 0 && (
+                <div className="mt-1.5 space-y-1 rounded-md border border-yellow-500/20 bg-yellow-500/5 p-2 text-[10px]">
+                  <div className="font-medium text-yellow-600 dark:text-yellow-400">
+                    {t("settings.toolConflictTitle", {
+                      defaultValue: "检测到多处安装",
+                    })}
+                  </div>
+                  <ul className="space-y-0.5 text-muted-foreground">
+                    {toolDiagnostics[app.key]
+                      .slice(0, 3)
+                      .map((inst: any, idx: number) => (
+                        <li key={idx} className="truncate font-mono">
+                          {inst.path || inst.source || JSON.stringify(inst)}
+                        </li>
+                      ))}
+                    {toolDiagnostics[app.key].length > 3 && (
+                      <li className="text-muted-foreground/70">
+                        ... 共 {toolDiagnostics[app.key].length} 处
+                      </li>
+                    )}
+                  </ul>
+                  <p className="text-[9px] text-muted-foreground/80">
+                    {t("settings.toolConflictHint", {
+                      defaultValue:
+                        "多处安装可能导致版本不一致，建议保留一处并移除其它。",
+                    })}
+                  </p>
                 </div>
-                <ul className="space-y-0.5 text-muted-foreground">
-                  {toolDiagnostics[app.key].slice(0, 3).map((inst: any, idx: number) => (
-                    <li key={idx} className="truncate font-mono">
-                      {inst.path || inst.source || JSON.stringify(inst)}
-                    </li>
-                  ))}
-                  {toolDiagnostics[app.key].length > 3 && (
-                    <li className="text-muted-foreground/70">... 共 {toolDiagnostics[app.key].length} 处</li>
-                  )}
-                </ul>
-                <p className="text-[9px] text-muted-foreground/80">
-                  {t("settings.toolConflictHint", { defaultValue: "多处安装可能导致版本不一致，建议保留一处并移除其它。" })}
-                </p>
-              </div>
-            )}
+              )}
 
             {/* 安装 / 更新进度条 + 实时消息 */}
             {isInstalling && (
@@ -769,7 +846,11 @@ export default function InstallToolsPage() {
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
                           className={`h-full rounded-full bg-primary transition-all duration-200 ${isIndeterminate ? "w-2/5 animate-pulse" : ""}`}
-                          style={isIndeterminate ? undefined : { width: `${Math.min(100, Math.max(5, pct))}%` }}
+                          style={
+                            isIndeterminate
+                              ? undefined
+                              : { width: `${Math.min(100, Math.max(5, pct))}%` }
+                          }
                         />
                       </div>
                       {msg && (
@@ -790,23 +871,43 @@ export default function InstallToolsPage() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => void (isCodexDesktop ? refreshCodexDesktopStatus() : isClaudeDesktop ? refreshClaudeDesktopStatus() : isCodexCli ? refreshCodexCliStatus() : isClaudeCli ? refreshClaudeCliStatus() : isOpencodeCli ? refreshOpencodeCliStatus() : refreshGrokCliStatus())}
+              onClick={() =>
+                void (isCodexDesktop
+                  ? refreshCodexDesktopStatus()
+                  : isClaudeDesktop
+                    ? refreshClaudeDesktopStatus()
+                    : isCodexCli
+                      ? refreshCodexCliStatus()
+                      : isClaudeCli
+                        ? refreshClaudeCliStatus()
+                        : isOpencodeCli
+                          ? refreshOpencodeCliStatus()
+                          : refreshGrokCliStatus())
+              }
               disabled={statusLoading}
               className="h-8 w-8 p-0"
               title="刷新状态"
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", statusLoading && "animate-spin")} />
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", statusLoading && "animate-spin")}
+              />
             </Button>
           )}
 
           <Button
             size="sm"
             variant="default"
-            disabled={isInstalling || isUpToDate || statusLoading || (isSpecialVersionTool && !st)}
+            disabled={
+              isInstalling ||
+              isUpToDate ||
+              statusLoading ||
+              (isSpecialVersionTool && !st)
+            }
             onClick={() => void handleInstall(app)}
             className={cn(
               "gap-1.5 min-w-[92px]",
-              needsUpdate && "!bg-amber-500 hover:!bg-amber-600 dark:!bg-amber-500 dark:hover:!bg-amber-600 text-white"
+              needsUpdate &&
+                "!bg-amber-500 hover:!bg-amber-600 dark:!bg-amber-500 dark:hover:!bg-amber-600 text-white",
             )}
           >
             {isInstalling ? (
@@ -840,11 +941,23 @@ export default function InstallToolsPage() {
     }));
 
     try {
-      if (key === "codex" || key === "claude" || key === "opencode" || key === "grok") {
+      if (
+        key === "codex" ||
+        key === "claude" ||
+        key === "opencode" ||
+        key === "grok"
+      ) {
         // Codex CLI / Claude Code CLI / OpenCode / Grok Build：机制完全一致。
         // 官方脚本优先；macOS/Linux brew（或 tap），Windows npm 国内镜像。
         // 支持 getToolVersions + needsUpdate 判断 + 传 "update" 或 "install"。
-        const toolLabel = key === "codex" ? "Codex CLI" : key === "claude" ? "Claude Code" : key === "opencode" ? "OpenCode" : "Grok Build";
+        const toolLabel =
+          key === "codex"
+            ? "Codex CLI"
+            : key === "claude"
+              ? "Claude Code"
+              : key === "opencode"
+                ? "OpenCode"
+                : "Grok Build";
         try {
           const res = await settingsApi.getToolVersions([key]);
           const info = res?.[0] || ({} as any);
@@ -853,27 +966,35 @@ export default function InstallToolsPage() {
             if (!cliVersionsCache) {
               cliVersionsCache = { data: [info], at: Date.now() };
             } else {
-              const i = cliVersionsCache.data.findIndex((d: any) => d.name === info.name);
+              const i = cliVersionsCache.data.findIndex(
+                (d: any) => d.name === info.name,
+              );
               if (i >= 0) cliVersionsCache.data[i] = info;
               else cliVersionsCache.data.push(info);
             }
           }
-          const isInstalled = !!(info.version) || !!info.installed_but_broken;
+          const isInstalled = !!info.version || !!info.installed_but_broken;
           const curVer = info.version;
           const newVer = info.latest_version;
 
-          const needsUpdate = isInstalled && !!newVer && !!curVer && newVer !== curVer;
+          const needsUpdate =
+            isInstalled && !!newVer && !!curVer && newVer !== curVer;
 
           if (isInstalled && !needsUpdate) {
             toast.info(`当前已是最新版本 ${curVer || newVer || ""}`);
           } else {
             if (isInstalled) {
-              toast.info(`已安装 ${curVer || "?"} → ${newVer || "latest"}，开始更新 ${toolLabel}...`);
+              toast.info(
+                `已安装 ${curVer || "?"} → ${newVer || "latest"}，开始更新 ${toolLabel}...`,
+              );
             } else {
               toast.info(`开始安装 ${toolLabel}`);
             }
 
-            await settingsApi.runToolLifecycleAction([key], needsUpdate ? "update" : "install");
+            await settingsApi.runToolLifecycleAction(
+              [key],
+              needsUpdate ? "update" : "install",
+            );
 
             // 立即刷新版本以反映真实结果（类似设置页的 executeRun 后处理）
             const afterRes = await settingsApi.getToolVersions([key]);
@@ -883,7 +1004,9 @@ export default function InstallToolsPage() {
               if (!cliVersionsCache) {
                 cliVersionsCache = { data: [afterInfo], at: Date.now() };
               } else {
-                const i = cliVersionsCache.data.findIndex((d: any) => d.name === afterInfo.name);
+                const i = cliVersionsCache.data.findIndex(
+                  (d: any) => d.name === afterInfo.name,
+                );
                 if (i >= 0) cliVersionsCache.data[i] = afterInfo;
                 else cliVersionsCache.data.push(afterInfo);
               }
@@ -891,9 +1014,12 @@ export default function InstallToolsPage() {
             }
             const afterVer = afterInfo.version;
 
-            const versionUnchanged = needsUpdate && !!curVer && !!afterVer && afterVer === curVer;
+            const versionUnchanged =
+              needsUpdate && !!curVer && !!afterVer && afterVer === curVer;
             if (versionUnchanged) {
-              toast.warning(`${toolLabel} 更新命令执行完成，但版本未变化（所用包管理器/源可能已是最新，或安装位置与版本来源不一致）`);
+              toast.warning(
+                `${toolLabel} 更新命令执行完成，但版本未变化（所用包管理器/源可能已是最新，或安装位置与版本来源不一致）`,
+              );
             } else {
               toast.success(`${toolLabel} 安装/更新命令已完成`);
             }
@@ -932,7 +1058,14 @@ export default function InstallToolsPage() {
       } else if (key === "codex-desktop") {
         // 完整接入 Codex-App-Manager 的下载与更新流程（agentsmirror primary + lumocore mirror 兜底 + Sparkle appcast）
         // 主路径保留原有，内部已实现 mirror fallback
-        setInstallProgress((prev) => ({ ...prev, [key]: { percent: 10, message: "正在获取最新版本信息...", phase: "running" } }));
+        setInstallProgress((prev) => ({
+          ...prev,
+          [key]: {
+            percent: 10,
+            message: "正在获取最新版本信息...",
+            phase: "running",
+          },
+        }));
         try {
           const status = await settingsApi.getCodexDesktopInstallStatus();
           const latest = await settingsApi.getCodexDesktopLatest();
@@ -947,24 +1080,30 @@ export default function InstallToolsPage() {
           const curB = status.build;
           const newB = latest.build;
 
-          const needsUpdate = isInstalled && (
-            (newB != null && curB != null && newB > curB) ||
-            (!!newVer && !!curVer && newVer !== curVer)
-          );
+          const needsUpdate =
+            isInstalled &&
+            ((newB != null && curB != null && newB > curB) ||
+              (!!newVer && !!curVer && newVer !== curVer));
 
           if (isInstalled) {
             if (!needsUpdate) {
               toast.info(`当前已是最新版本 v${curVer || newVer}`);
             } else {
-              const sizeMb = latest.fullSize ? (latest.fullSize / 1024 / 1024).toFixed(0) : "";
+              const sizeMb = latest.fullSize
+                ? (latest.fullSize / 1024 / 1024).toFixed(0)
+                : "";
               const deltaHint = latest.hasDeltas ? " 支持增量更新" : "";
               toast.info(
                 `已安装 v${curVer || "?"} (build ${curB ?? "?"}) → v${newVer}，下载完整包 ${sizeMb ? sizeMb + "MB " : ""}${deltaHint}`,
               );
             }
           } else {
-            const sizeMb = latest.fullSize ? (latest.fullSize / 1024 / 1024).toFixed(0) : "";
-            toast.info(`开始下载 ${app.label} v${newVer || "latest"} ${sizeMb ? sizeMb + "MB " : ""}`);
+            const sizeMb = latest.fullSize
+              ? (latest.fullSize / 1024 / 1024).toFixed(0)
+              : "";
+            toast.info(
+              `开始下载 ${app.label} v${newVer || "latest"} ${sizeMb ? sizeMb + "MB " : ""}`,
+            );
           }
 
           if (!(isInstalled && !needsUpdate)) {
@@ -986,7 +1125,14 @@ export default function InstallToolsPage() {
       } else if (key === "claude-desktop") {
         // Claude Desktop：优先国内镜像源，失败时 fallback 官方
         // 下载后使用 SHA256SUMS 校验（在后端实现）
-        setInstallProgress((prev) => ({ ...prev, [key]: { percent: 10, message: "正在从镜像源获取...", phase: "running" } }));
+        setInstallProgress((prev) => ({
+          ...prev,
+          [key]: {
+            percent: 10,
+            message: "正在从镜像源获取...",
+            phase: "running",
+          },
+        }));
         try {
           const status = await settingsApi.getClaudeDesktopInstallStatus();
           const latest = await settingsApi.getClaudeDesktopLatest();
@@ -999,16 +1145,21 @@ export default function InstallToolsPage() {
           const curVer = status.version || "";
           const newVer = latest.version || "";
 
-          const needsUpdate = isInstalled && !!newVer && !!curVer && newVer !== curVer;
+          const needsUpdate =
+            isInstalled && !!newVer && !!curVer && newVer !== curVer;
 
           if (isInstalled) {
             if (!needsUpdate) {
               toast.info(`当前已是最新版本 v${curVer || newVer}`);
             } else {
-              toast.info(`已安装 v${curVer || "?"} → v${newVer}，开始下载更新...`);
+              toast.info(
+                `已安装 v${curVer || "?"} → v${newVer}，开始下载更新...`,
+              );
             }
           } else {
-            toast.info(`开始下载 ${app.label} v${newVer || "latest"}（优先国内镜像源）`);
+            toast.info(
+              `开始下载 ${app.label} v${newVer || "latest"}（优先国内镜像源）`,
+            );
           }
 
           if (!(isInstalled && !needsUpdate)) {
@@ -1072,7 +1223,9 @@ export default function InstallToolsPage() {
             onClick={() => setShowManualCommands(true)}
           >
             <Terminal className="h-3.5 w-3.5" />
-            {t("settings.manualInstallCommands", { defaultValue: "手动安装命令" })}
+            {t("settings.manualInstallCommands", {
+              defaultValue: "手动安装命令",
+            })}
           </Button>
           <Button
             size="sm"
@@ -1099,21 +1252,25 @@ export default function InstallToolsPage() {
             <div className="flex items-center gap-2 mb-2">
               <span
                 className={`inline-block w-2 h-2 rounded-full ${
-                  group.title === "Claude" ? "bg-violet-500" :
-                  group.title === "Codex" ? "bg-amber-500" :
-                  group.title === "Grok" ? "bg-sky-500" :
-                  group.title === "OpenCode" ? "bg-teal-500" :
-                  "bg-sky-500"
+                  group.title === "Claude"
+                    ? "bg-violet-500"
+                    : group.title === "Codex"
+                      ? "bg-amber-500"
+                      : group.title === "Grok"
+                        ? "bg-sky-500"
+                        : group.title === "OpenCode"
+                          ? "bg-teal-500"
+                          : "bg-sky-500"
                 }`}
                 aria-hidden
               />
-              <span className={`text-sm font-semibold tracking-tight transition-colors ${getGroupAccentClass(group.title)}`}>
+              <span
+                className={`text-sm font-semibold tracking-tight transition-colors ${getGroupAccentClass(group.title)}`}
+              >
                 {group.title}
               </span>
             </div>
-            <div className="space-y-3">
-              {group.apps.map(renderCard)}
-            </div>
+            <div className="space-y-3">{group.apps.map(renderCard)}</div>
           </div>
         ))}
       </div>
@@ -1134,7 +1291,11 @@ export default function InstallToolsPage() {
           onEscapeKeyDown={() => setShowManualCommands(false)}
         >
           <DialogHeader className="relative border-b px-6 py-5">
-            <DialogTitle>{t("settings.manualInstallCommands", { defaultValue: "手动安装命令" })}</DialogTitle>
+            <DialogTitle>
+              {t("settings.manualInstallCommands", {
+                defaultValue: "手动安装命令",
+              })}
+            </DialogTitle>
             <DialogDescription>
               {t("settings.oneClickInstallHint", {
                 defaultValue:
@@ -1155,15 +1316,21 @@ export default function InstallToolsPage() {
               const isCurrent = block.id === currentInstallPlatform;
               const platformLabel =
                 block.id === "posix"
-                  ? t("settings.installCommandsPlatformPosix", { defaultValue: "macOS / Linux" })
-                  : t("settings.installCommandsPlatformWindows", { defaultValue: "Windows" });
+                  ? t("settings.installCommandsPlatformPosix", {
+                      defaultValue: "macOS / Linux",
+                    })
+                  : t("settings.installCommandsPlatformWindows", {
+                      defaultValue: "Windows",
+                    });
               const platformHint =
                 block.id === "posix"
                   ? t("settings.installCommandsPlatformPosixHint", {
-                      defaultValue: "在终端（zsh/bash）执行；macOS/Linux 官方脚本优先或 Homebrew，失败回退 npm。",
+                      defaultValue:
+                        "在终端（zsh/bash）执行；macOS/Linux 官方脚本优先或 Homebrew，失败回退 npm。",
                     })
                   : t("settings.installCommandsPlatformWindowsHint", {
-                      defaultValue: "在 PowerShell/cmd 执行 npm 命令（国内镜像）；Grok Build 官方脚本建议用 Git Bash。",
+                      defaultValue:
+                        "在 PowerShell/cmd 执行 npm 命令（国内镜像）；Grok Build 官方脚本建议用 Git Bash。",
                     });
 
               return (
@@ -1171,29 +1338,42 @@ export default function InstallToolsPage() {
                   key={block.id}
                   className={cn(
                     "rounded-lg border bg-background/60 p-3 space-y-2",
-                    isCurrent ? "border-primary/40 ring-1 ring-primary/15" : "border-border/70",
+                    isCurrent
+                      ? "border-primary/40 ring-1 ring-primary/15"
+                      : "border-border/70",
                   )}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-foreground">{platformLabel}</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {platformLabel}
+                      </span>
                       {isCurrent && (
-                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-normal">
-                          {t("settings.installCommandsPlatformCurrent", { defaultValue: "当前系统" })}
+                        <Badge
+                          variant="secondary"
+                          className="h-5 px-1.5 text-[10px] font-normal"
+                        >
+                          {t("settings.installCommandsPlatformCurrent", {
+                            defaultValue: "当前系统",
+                          })}
                         </Badge>
                       )}
                     </div>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => void handleCopyInstallCommands(block.commands)}
+                      onClick={() =>
+                        void handleCopyInstallCommands(block.commands)
+                      }
                       className="h-7 gap-1.5 text-xs shrink-0"
                     >
                       <Copy className="h-3.5 w-3.5" />
                       {t("common.copy")}
                     </Button>
                   </div>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">{platformHint}</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {platformHint}
+                  </p>
                   <pre className="text-xs font-mono bg-muted/40 px-3 py-2.5 rounded-md border border-border/50 overflow-x-auto whitespace-pre-wrap break-all">
                     {block.commands}
                   </pre>

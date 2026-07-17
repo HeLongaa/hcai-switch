@@ -155,13 +155,22 @@ fn sync_single_grok_file(db: &Database, file_path: &Path) -> Result<(u32, u32), 
         // 尝试从 turn_started 拿 model
         if value.get("type").and_then(|t| t.as_str()) == Some("turn_started") {
             if let Some(model) = value.get("model_id").and_then(|m| m.as_str()) {
-                let ts = value.get("ts").and_then(|t| t.as_str()).map(|s| s.to_string());
+                let ts = value
+                    .get("ts")
+                    .and_then(|t| t.as_str())
+                    .map(|s| s.to_string());
                 records.push(GrokUsageRecord {
                     model: model.to_string(),
                     total_tokens: 0,
                     timestamp: ts,
                     session_id: session_id_from_path.clone(),
-                    turn_or_event: format!("turn-{}", value.get("turn_number").and_then(|n| n.as_i64()).unwrap_or(0)),
+                    turn_or_event: format!(
+                        "turn-{}",
+                        value
+                            .get("turn_number")
+                            .and_then(|n| n.as_i64())
+                            .unwrap_or(0)
+                    ),
                 });
             }
         }
@@ -169,8 +178,16 @@ fn sync_single_grok_file(db: &Database, file_path: &Path) -> Result<(u32, u32), 
         // 从 assistant 消息拿 model
         if value.get("type").and_then(|t| t.as_str()) == Some("assistant") {
             if let Some(model) = value.get("model_id").and_then(|m| m.as_str()) {
-                let ts = value.get("_meta").and_then(|m| m.get("agentTimestampMs")).and_then(|t| t.as_str().map(|s| s.to_string()))
-                    .or_else(|| value.get("ts").and_then(|t| t.as_str()).map(|s| s.to_string()));
+                let ts = value
+                    .get("_meta")
+                    .and_then(|m| m.get("agentTimestampMs"))
+                    .and_then(|t| t.as_str().map(|s| s.to_string()))
+                    .or_else(|| {
+                        value
+                            .get("ts")
+                            .and_then(|t| t.as_str())
+                            .map(|s| s.to_string())
+                    });
 
                 // 尝试提取 totalTokens
                 let total = value
@@ -198,7 +215,9 @@ fn sync_single_grok_file(db: &Database, file_path: &Path) -> Result<(u32, u32), 
                         .and_then(|m| m.as_str())
                         .unwrap_or("grok")
                         .to_string();
-                    let ts = meta.get("agentTimestampMs").and_then(|t| t.as_str().map(|s| s.to_string()));
+                    let ts = meta
+                        .get("agentTimestampMs")
+                        .and_then(|t| t.as_str().map(|s| s.to_string()));
                     records.push(GrokUsageRecord {
                         model,
                         total_tokens: total as u32,
@@ -224,10 +243,7 @@ fn sync_single_grok_file(db: &Database, file_path: &Path) -> Result<(u32, u32), 
         let input = rec.total_tokens / 3;
         let output = rec.total_tokens.saturating_sub(input);
 
-        let request_id = format!(
-            "grok_session:{}:{}",
-            rec.session_id, rec.turn_or_event
-        );
+        let request_id = format!("grok_session:{}:{}", rec.session_id, rec.turn_or_event);
 
         match insert_grok_session_entry(db, &request_id, &rec, input, output) {
             Ok(true) => imported += 1,
@@ -298,31 +314,26 @@ fn insert_grok_session_entry(
     };
 
     let multiplier = Decimal::from(1);
-    let (
-        input_cost,
-        output_cost,
-        cache_read_cost,
-        cache_creation_cost,
-        total_cost,
-    ) = match find_model_pricing(&conn, &rec.model) {
-        Some(p) => {
-            let c = CostCalculator::calculate(&usage, &p, multiplier);
-            (
-                c.input_cost.to_string(),
-                c.output_cost.to_string(),
-                c.cache_read_cost.to_string(),
-                c.cache_creation_cost.to_string(),
-                c.total_cost.to_string(),
-            )
-        }
-        None => (
-            "0".to_string(),
-            "0".to_string(),
-            "0".to_string(),
-            "0".to_string(),
-            "0".to_string(),
-        ),
-    };
+    let (input_cost, output_cost, cache_read_cost, cache_creation_cost, total_cost) =
+        match find_model_pricing(&conn, &rec.model) {
+            Some(p) => {
+                let c = CostCalculator::calculate(&usage, &p, multiplier);
+                (
+                    c.input_cost.to_string(),
+                    c.output_cost.to_string(),
+                    c.cache_read_cost.to_string(),
+                    c.cache_creation_cost.to_string(),
+                    c.total_cost.to_string(),
+                )
+            }
+            None => (
+                "0".to_string(),
+                "0".to_string(),
+                "0".to_string(),
+                "0".to_string(),
+                "0".to_string(),
+            ),
+        };
 
     let model = &rec.model;
 

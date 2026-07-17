@@ -473,7 +473,6 @@ pub struct CommonConfigSnippets {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grok: Option<String>,
-
 }
 
 impl CommonConfigSnippets {

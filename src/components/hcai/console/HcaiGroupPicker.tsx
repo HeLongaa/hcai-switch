@@ -228,7 +228,10 @@ export function HcaiGroupPicker({
       e.preventDefault();
       el.scrollTop += e.deltaY;
     };
-    document.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    document.addEventListener("wheel", onWheel, {
+      passive: false,
+      capture: true,
+    });
     return () => document.removeEventListener("wheel", onWheel, true);
   }, [open]);
 

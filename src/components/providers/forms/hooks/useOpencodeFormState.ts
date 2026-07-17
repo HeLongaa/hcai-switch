@@ -76,7 +76,7 @@ export function useOpencodeFormState({
   const [opencodeHeaders, setOpencodeHeaders] = useState<
     Record<string, string>
   >(() => {
-      if (appId !== "opencode") return {};
+    if (appId !== "opencode") return {};
     const headers = initialOpencodeOptions.headers;
     return headers && typeof headers === "object"
       ? (headers as Record<string, string>)

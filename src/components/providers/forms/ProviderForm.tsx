@@ -566,8 +566,7 @@ function ProviderFormFull({
   /** Grok BYOK API Key → config.toml 的 api_key + settingsConfig.apiKey */
   const [grokApiKey, setGrokApiKey] = useState(() => {
     const cfg = initialData?.settingsConfig as
-      | { apiKey?: unknown; config?: string }
-      | undefined;
+      { apiKey?: unknown; config?: string } | undefined;
     if (typeof cfg?.apiKey === "string" && cfg.apiKey.trim()) {
       return cfg.apiKey;
     }

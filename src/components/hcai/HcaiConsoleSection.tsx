@@ -123,7 +123,10 @@ function SimpleMarkdown({ content }: { content: string }) {
         nodes.push(
           <ul key={key++} className="list-disc pl-5 my-2 space-y-1">
             {items.map((item, ii) => (
-              <li key={ii} className="text-sm leading-relaxed text-foreground/90">
+              <li
+                key={ii}
+                className="text-sm leading-relaxed text-foreground/90"
+              >
                 {renderInlineMd(item)}
               </li>
             ))}
@@ -142,7 +145,10 @@ function SimpleMarkdown({ content }: { content: string }) {
         nodes.push(
           <ol key={key++} className="list-decimal pl-5 my-2 space-y-1">
             {items.map((item, ii) => (
-              <li key={ii} className="text-sm leading-relaxed text-foreground/90">
+              <li
+                key={ii}
+                className="text-sm leading-relaxed text-foreground/90"
+              >
                 {renderInlineMd(item)}
               </li>
             ))}
@@ -180,7 +186,10 @@ function SimpleMarkdown({ content }: { content: string }) {
         i += 1;
       }
       nodes.push(
-        <p key={key++} className="text-sm leading-relaxed text-foreground/90 my-1.5">
+        <p
+          key={key++}
+          className="text-sm leading-relaxed text-foreground/90 my-1.5"
+        >
           {renderInlineMd(para.join(" "))}
         </p>,
       );
@@ -191,9 +200,7 @@ function SimpleMarkdown({ content }: { content: string }) {
 
   if (!content.trim()) {
     return (
-      <p className="text-sm text-muted-foreground py-8 text-center">
-        暂无内容
-      </p>
+      <p className="text-sm text-muted-foreground py-8 text-center">暂无内容</p>
     );
   }
 
@@ -242,9 +249,9 @@ export function HcaiConsoleSection({
   const [googleOauthEnabled, setGoogleOauthEnabled] = useState(true);
   const [docsLoading, setDocsLoading] = useState(true);
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
-  const [oauthProvider, setOauthProvider] = useState<"github" | "google" | null>(
-    null,
-  );
+  const [oauthProvider, setOauthProvider] = useState<
+    "github" | "google" | null
+  >(null);
   const oauthSubmitting = oauthProvider !== null;
 
   const activeDoc = useMemo(
@@ -756,7 +763,6 @@ export function HcaiConsoleSection({
                 </button>
               </p>
             </div>
-
           </div>
         </div>
 
@@ -818,7 +824,7 @@ export function HcaiConsoleSection({
     );
   }
 
-// —— 已登录：多板块控制台（前端占位） ——
+  // —— 已登录：多板块控制台（前端占位） ——
   // subtitle / children / onRefresh 保留接口兼容，内容改由 HcaiLoggedInConsole 承载
   void children;
   void subtitle;

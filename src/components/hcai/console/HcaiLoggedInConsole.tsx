@@ -122,11 +122,7 @@ import {
   defaultDashboardDateSelection,
   type DashboardDateSelection,
 } from "./DashboardDateRangePicker";
-import {
-  GroupChip,
-  groupRateLabel,
-  HcaiGroupPicker,
-} from "./HcaiGroupPicker";
+import { GroupChip, groupRateLabel, HcaiGroupPicker } from "./HcaiGroupPicker";
 import {
   CHART_COLORS,
   formatLatencySeconds,
@@ -135,11 +131,7 @@ import {
   platformLabel,
 } from "./format";
 export type HcaiConsoleTab =
-  | "dashboard"
-  | "api-keys"
-  | "usage"
-  | "subscriptions"
-  | "redeem";
+  "dashboard" | "api-keys" | "usage" | "subscriptions" | "redeem";
 
 const NAV: {
   id: HcaiConsoleTab;
@@ -328,7 +320,11 @@ function TokenTrendTooltip({
 
   const rows: { label: string; value: string; color: string }[] = [
     { label: "Input", value: formatTokensDetail(p.inputRaw), color: "#7dd3fc" },
-    { label: "Output", value: formatTokensDetail(p.outputRaw), color: "#86efac" },
+    {
+      label: "Output",
+      value: formatTokensDetail(p.outputRaw),
+      color: "#86efac",
+    },
     {
       label: "Cache Creation",
       value: formatTokensDetail(p.cacheCreateRaw),
@@ -384,7 +380,10 @@ function TokenTrend({ data }: { data: TrendChartPoint[] }) {
       <h4 className="text-sm font-semibold shrink-0 mb-2">Token 使用趋势</h4>
       <div className="flex-1 min-h-0 w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis dataKey="date" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
@@ -493,14 +492,11 @@ function mapTrendRows(points: HcaiDashboardTrendPoint[]): TrendChartPoint[] {
     const cacheReadRaw = p.cache_read_tokens ?? 0;
     // 命中率：cache_read / (input + cache_read)，与 Web 一致
     const denom = inputRaw + cacheReadRaw;
-    const hit =
-      denom > 0 ? Math.round((cacheReadRaw / denom) * 1000) / 10 : 0;
+    const hit = denom > 0 ? Math.round((cacheReadRaw / denom) * 1000) / 10 : 0;
     // 图表用百万 token，与命中率(0–100)同轴可读
     const toM = (n: number) => Math.round((n / 1e6) * 100) / 100;
-    const fullDate =
-      p.date.length >= 10 ? p.date.slice(0, 10) : p.date;
-    const dateLabel =
-      fullDate.length >= 10 ? fullDate.slice(5, 10) : fullDate;
+    const fullDate = p.date.length >= 10 ? p.date.slice(0, 10) : p.date;
+    const dateLabel = fullDate.length >= 10 ? fullDate.slice(5, 10) : fullDate;
     return {
       date: dateLabel,
       fullDate,
@@ -542,8 +538,7 @@ function DashboardPage({
   const [dateSel, setDateSel] = useState<DashboardDateSelection>(() =>
     defaultDashboardDateSelection(),
   );
-  const [granularity, setGranularity] =
-    useState<DashboardGranularity>("day");
+  const [granularity, setGranularity] = useState<DashboardGranularity>("day");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -632,7 +627,12 @@ function DashboardPage({
     return (
       <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
         <p className="text-sm text-destructive">{error}</p>
-        <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void load()}
+        >
           重试
         </Button>
       </div>
@@ -1017,9 +1017,7 @@ function ApiKeysPage({
       setAvailableGroups(Array.isArray(list) ? list : []);
     } catch (err) {
       if (handleAuthError(err)) return;
-      toast.error(
-        err instanceof Error ? err.message : "加载可用分组失败",
-      );
+      toast.error(err instanceof Error ? err.message : "加载可用分组失败");
     } finally {
       setGroupsLoading(false);
     }
@@ -1124,17 +1122,14 @@ function ApiKeysPage({
     try {
       const updated = await setHcaiApiKeyStatus(accessToken, item.id, next);
       // 以接口返回为准立刻更新行状态（避免仍显示「活跃」）
-      const finalStatus =
-        (updated?.status as string | undefined) ?? next;
+      const finalStatus = (updated?.status as string | undefined) ?? next;
       const patched: HcaiApiKeyItem = {
         ...item,
         ...updated,
         status: finalStatus,
       };
       setItems((prev) => patchKeyInList(prev, patched, statusFilter));
-      toast.success(
-        isKeyActive(finalStatus) ? "已启用" : "已禁用",
-      );
+      toast.success(isKeyActive(finalStatus) ? "已启用" : "已禁用");
     } catch (err) {
       if (handleAuthError(err)) return;
       toast.error(err instanceof Error ? err.message : "操作失败");
@@ -1312,11 +1307,7 @@ function ApiKeysPage({
             onClick={() => void copyText(ep.url, "端点已复制")}
           >
             <span className="text-muted-foreground">{ep.name}</span>
-            {ep.tag ? (
-              <span className="text-primary">
-                {ep.tag}
-              </span>
-            ) : null}
+            {ep.tag ? <span className="text-primary">{ep.tag}</span> : null}
             <span className="font-mono text-foreground/80 truncate max-w-[180px]">
               {ep.url}
             </span>
@@ -1348,22 +1339,36 @@ function ApiKeysPage({
           </div>
         ) : filtered.length === 0 ? (
           <div className="py-12 text-center text-xs text-muted-foreground">
-            {search || groupFilter !== "all"
-              ? "没有匹配的密钥"
-              : "暂无密钥"}
+            {search || groupFilter !== "all" ? "没有匹配的密钥" : "暂无密钥"}
           </div>
         ) : (
           <table className="w-full text-sm min-w-[1080px]">
             <thead>
               <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
-                <th className="px-3 py-3 font-medium text-muted-foreground">名称</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">API 密钥</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">分组</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">当前并发</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">用量</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">过期时间</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">状态</th>
-                <th className="px-3 py-3 font-medium text-muted-foreground">创建时间</th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  名称
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  API 密钥
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  分组
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  当前并发
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  用量
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  过期时间
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  状态
+                </th>
+                <th className="px-3 py-3 font-medium text-muted-foreground">
+                  创建时间
+                </th>
                 <th className="px-3 py-3 font-medium text-muted-foreground whitespace-nowrap">
                   操作
                 </th>
@@ -1379,7 +1384,9 @@ function ApiKeysPage({
                     key={k.id}
                     className="border-b border-border/60 last:border-0"
                   >
-                    <td className="px-3 py-3 font-medium text-muted-foreground">{k.name || "—"}</td>
+                    <td className="px-3 py-3 font-medium text-muted-foreground">
+                      {k.name || "—"}
+                    </td>
                     <td className="px-3 py-2.5">
                       <button
                         type="button"
@@ -1615,9 +1622,7 @@ function ApiKeysPage({
                   <Label className="text-xs">分组</Label>
                   <HcaiGroupPicker
                     groups={availableGroups}
-                    valueId={
-                      createGroupId ? Number(createGroupId) : null
-                    }
+                    valueId={createGroupId ? Number(createGroupId) : null}
                     loading={groupsLoading}
                     disabled={createSubmitting}
                     placeholder="选择分组"
@@ -1734,9 +1739,7 @@ function ApiKeysPage({
               <Label className="text-xs">状态</Label>
               <Select
                 value={editStatus}
-                onValueChange={(v) =>
-                  setEditStatus(v as "active" | "inactive")
-                }
+                onValueChange={(v) => setEditStatus(v as "active" | "inactive")}
                 disabled={editSubmitting}
               >
                 <SelectTrigger className="h-9 text-sm">
@@ -1970,9 +1973,7 @@ function UsageTokenCell({ row }: { row: HcaiUsageRecord }) {
         {(cacheRead > 0 || cacheCreate > 0) && (
           <div className="inline-flex items-center gap-1 tabular-nums text-sky-500 leading-tight">
             <CacheTokenIcon className="h-3.5 w-3.5 shrink-0" />
-            <span>
-              {formatTokens(cacheRead > 0 ? cacheRead : cacheCreate)}
-            </span>
+            <span>{formatTokens(cacheRead > 0 ? cacheRead : cacheCreate)}</span>
           </div>
         )}
       </div>
@@ -2047,12 +2048,8 @@ function UsageLatencyCell({ row }: { row: HcaiUsageRecord }) {
     : totalSlow
       ? "bg-amber-300"
       : "bg-emerald-400";
-  const firstClass = firstSlow
-    ? "text-orange-500"
-    : "text-emerald-500";
-  const totalClass = totalSlow
-    ? "text-amber-400"
-    : "text-emerald-500";
+  const firstClass = firstSlow ? "text-orange-500" : "text-emerald-500";
+  const totalClass = totalSlow ? "text-amber-400" : "text-emerald-500";
 
   return (
     <div className="flex items-stretch gap-2 min-w-[7.5rem]">
@@ -2127,15 +2124,9 @@ function UsageCostCell({ row }: { row: HcaiUsageRecord }) {
             value={formatPricePerM(outputPrice)}
             valueClass="text-violet-400"
           />
-          <DetailRow
-            label="缓存读取费用"
-            value={money(cacheReadCost, 6)}
-          />
+          <DetailRow label="缓存读取费用" value={money(cacheReadCost, 6)} />
           {cacheCreateCost > 0 ? (
-            <DetailRow
-              label="缓存写入费用"
-              value={money(cacheCreateCost, 6)}
-            />
+            <DetailRow label="缓存写入费用" value={money(cacheCreateCost, 6)} />
           ) : null}
           <div className="my-1.5 border-t border-white/10" />
           <DetailRow
@@ -2201,10 +2192,7 @@ function UsagePage({
   );
 
   const loadSummary = useCallback(
-    async (opts?: {
-      soft?: boolean;
-      range?: DashboardDateSelection;
-    }) => {
+    async (opts?: { soft?: boolean; range?: DashboardDateSelection }) => {
       const soft = opts?.soft ?? false;
       const range = opts?.range ?? dateSel;
       if (soft) setRefreshing(true);
@@ -2287,10 +2275,7 @@ function UsagePage({
   );
 
   const loadErrorList = useCallback(
-    async (opts?: {
-      range?: DashboardDateSelection;
-      page?: number;
-    }) => {
+    async (opts?: { range?: DashboardDateSelection; page?: number }) => {
       const range = opts?.range ?? dateSel;
       const p = opts?.page ?? errorPage;
       setErrorListLoading(true);
@@ -2387,7 +2372,12 @@ function UsagePage({
     return (
       <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
         <p className="text-sm text-destructive">{error}</p>
-        <Button type="button" size="sm" variant="outline" onClick={() => void loadSummary()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void loadSummary()}
+        >
           重试
         </Button>
       </div>
@@ -2811,9 +2801,7 @@ function UsagePage({
                         </span>
                       </td>
                       <td className="px-2.5 py-2 whitespace-nowrap">
-                        {row.platform
-                          ? platformLabel(row.platform)
-                          : "—"}
+                        {row.platform ? platformLabel(row.platform) : "—"}
                       </td>
                       <td className="px-2.5 py-2 max-w-[280px]">
                         {row.message ? (
@@ -2857,8 +2845,8 @@ function UsagePage({
           {errorPages > 1 || errorTotal > USAGE_PAGE_SIZE ? (
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                共 {errorTotal} 条 · 第 {errorPage} /{" "}
-                {Math.max(errorPages, 1)} 页
+                共 {errorTotal} 条 · 第 {errorPage} / {Math.max(errorPages, 1)}{" "}
+                页
               </span>
               <div className="flex items-center gap-1.5">
                 <Button
@@ -3084,9 +3072,7 @@ function ErrorRequestDetailDialog({
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>上游响应内容</span>
-                {loading ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : null}
+                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
               </div>
               {loadError ? (
                 <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -3099,9 +3085,7 @@ function ErrorRequestDetailDialog({
               )}
             </div>
 
-            {(display.key_name ||
-              display.group_name ||
-              display.client_ip) && (
+            {(display.key_name || display.group_name || display.client_ip) && (
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 pt-1 border-t border-border/60">
                 {display.key_name ? (
                   <ErrorDetailField label="API 密钥">
@@ -3260,7 +3244,12 @@ function SubscriptionsPage({
     return (
       <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
         <p className="text-sm text-destructive">{error}</p>
-        <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void load()}
+        >
           重试
         </Button>
       </div>
@@ -3366,11 +3355,7 @@ function SubscriptionsPage({
                 </div>
                 <div className="flex items-center justify-between text-xs border-t border-border/60 pt-2">
                   <span className="text-muted-foreground">到期时间</span>
-                  <span
-                    className={cn(
-                      !active && "text-red-500 font-medium",
-                    )}
-                  >
+                  <span className={cn(!active && "text-red-500 font-medium")}>
                     {formatSubscriptionExpireLabel(s.expires_at, s.status)}
                   </span>
                 </div>
@@ -3403,9 +3388,7 @@ function SubscriptionsPage({
                       ? formatWindowReset(s.monthly_window_start, "month")
                       : undefined
                   }
-                  danger={
-                    monthlyLimit > 0 && monthlyUsed >= monthlyLimit
-                  }
+                  danger={monthlyLimit > 0 && monthlyUsed >= monthlyLimit}
                 />
               </div>
             );
@@ -3607,10 +3590,7 @@ function RedeemPage({
     }
   };
 
-  const activities = useMemo(
-    () => history.map(mapRedeemActivity),
-    [history],
-  );
+  const activities = useMemo(() => history.map(mapRedeemActivity), [history]);
 
   return (
     <div className="space-y-4 max-w-lg mx-auto">
@@ -3734,16 +3714,13 @@ function RedeemPage({
                   <div className="text-sm font-medium truncate">
                     {a.typeLabel}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {a.time}
-                  </div>
+                  <div className="text-xs text-muted-foreground">{a.time}</div>
                 </div>
                 <div className="text-right shrink-0 max-w-[50%]">
                   <div
                     className={cn(
                       "text-sm font-medium truncate",
-                      a.tone === "green" &&
-                        "text-primary",
+                      a.tone === "green" && "text-primary",
                       a.tone === "purple" &&
                         "text-violet-600 dark:text-violet-400",
                     )}
@@ -3762,7 +3739,6 @@ function RedeemPage({
     </div>
   );
 }
-
 
 /** 对齐 HCAI Web 用户菜单中的客服说明（公开信息） */
 const HCAI_SUPPORT_BLURB =

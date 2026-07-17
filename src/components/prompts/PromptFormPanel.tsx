@@ -95,9 +95,10 @@ const PromptFormPanel: React.FC<PromptFormPanelProps> = ({
         updatedAt: timestamp,
       };
 
-      const appsToSave: AppId[] = isEditing && editingAppId
-        ? [editingAppId]
-        : PROMPTS_APP_IDS.filter((a) => targetApps[a]);
+      const appsToSave: AppId[] =
+        isEditing && editingAppId
+          ? [editingAppId]
+          : PROMPTS_APP_IDS.filter((a) => targetApps[a]);
 
       await onSave(appsToSave, id, prompt);
       onClose();

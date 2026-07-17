@@ -165,8 +165,7 @@ export function useSpeedTestEndpoints({
     if (grokBaseUrl) add(grokBaseUrl);
 
     const initialGrokConfig = initialData?.settingsConfig as
-      | { config?: string }
-      | undefined;
+      { config?: string } | undefined;
     add(extractGrokBaseUrl(initialGrokConfig?.config ?? ""));
 
     if (selectedPresetId && selectedPresetId !== "custom") {

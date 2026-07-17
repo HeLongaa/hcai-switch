@@ -128,11 +128,7 @@ const PromptPanel = React.forwardRef<PromptPanelHandle, PromptPanelProps>(
       });
     };
 
-    const handleToggle = async (
-      appId: AppId,
-      id: string,
-      enabled: boolean,
-    ) => {
+    const handleToggle = async (appId: AppId, id: string, enabled: boolean) => {
       const previous = { ...allPrompts };
       try {
         if (enabled) {
@@ -219,7 +215,9 @@ const PromptPanel = React.forwardRef<PromptPanelHandle, PromptPanelProps>(
 
         <TooltipProvider delayDuration={300}>
           <div className="flex items-center gap-2 mb-3 shrink-0">
-            <span className="text-xs text-muted-foreground shrink-0">筛选:</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              筛选:
+            </span>
             <AppToggleGroup
               apps={filter}
               onToggle={(app, enabled) =>
@@ -230,38 +228,38 @@ const PromptPanel = React.forwardRef<PromptPanelHandle, PromptPanelProps>(
           </div>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24 min-h-[200px]">
-          {loading ? (
-            <div className="text-center py-12 text-muted-foreground">
-              {t("prompts.loading")}
-            </div>
-          ) : promptEntries.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-                <FileText size={24} className="text-muted-foreground" />
+            {loading ? (
+              <div className="text-center py-12 text-muted-foreground">
+                {t("prompts.loading")}
               </div>
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                {t("prompts.empty")}
-              </h3>
-              <p className="text-muted-foreground text-sm">
-                {t("prompts.emptyDescription")}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {promptEntries.map((entry) => (
-                <PromptListItem
-                  key={entry.key}
-                  id={entry.id}
-                  appId={entry.appId}
-                  prompt={entry.prompt}
-                  onToggle={handleToggle}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            ) : promptEntries.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                  <FileText size={24} className="text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-medium text-foreground mb-2">
+                  {t("prompts.empty")}
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  {t("prompts.emptyDescription")}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {promptEntries.map((entry) => (
+                  <PromptListItem
+                    key={entry.key}
+                    id={entry.id}
+                    appId={entry.appId}
+                    prompt={entry.prompt}
+                    onToggle={handleToggle}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </TooltipProvider>
 
         {isFormOpen && (

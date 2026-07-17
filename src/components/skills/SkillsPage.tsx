@@ -95,7 +95,10 @@ const SKILLSSH_PAGE_SIZE = 20;
  * 用于浏览和安装来自仓库或 skills.sh 的 Skills
  */
 export const SkillsPage = forwardRef<SkillsPageHandle, SkillsPageProps>(
-  ({ initialApp = "claude", onSourceChange, leftOffset = 0, topOffset }, ref) => {
+  (
+    { initialApp = "claude", onSourceChange, leftOffset = 0, topOffset },
+    ref,
+  ) => {
     const { t } = useTranslation();
     const [repoManagerOpen, setRepoManagerOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");

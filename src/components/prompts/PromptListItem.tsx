@@ -49,7 +49,9 @@ const PromptListItem: React.FC<PromptListItemProps> = ({
                 {appConfig.icon}
               </span>
             )}
-            <h3 className="font-medium text-foreground truncate">{prompt.name}</h3>
+            <h3 className="font-medium text-foreground truncate">
+              {prompt.name}
+            </h3>
           </div>
           {prompt.description && (
             <p className="text-sm text-muted-foreground truncate">

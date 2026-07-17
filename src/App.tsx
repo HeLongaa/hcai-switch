@@ -156,8 +156,7 @@ const ACTIVE_APP_META: Record<
 const VIEW_HEADER_ICON: Partial<
   Record<
     View,
-    | { Icon: LucideIcon; className: string }
-    | { kind: "mcp"; className: string }
+    { Icon: LucideIcon; className: string } | { kind: "mcp"; className: string }
   >
 > = {
   usage: { Icon: BarChart2, className: "text-violet-500 dark:text-violet-400" },

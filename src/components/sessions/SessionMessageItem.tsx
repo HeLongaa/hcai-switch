@@ -77,7 +77,12 @@ export const SessionMessageItem = memo(function SessionMessageItem({
         </TooltipContent>
       </Tooltip>
       <div className="flex items-center justify-between text-xs mb-2 pr-8">
-        <span className={cn("font-semibold tracking-tight", getRoleTone(message.role))}>
+        <span
+          className={cn(
+            "font-semibold tracking-tight",
+            getRoleTone(message.role),
+          )}
+        >
           {getRoleLabel(message.role, t)}
         </span>
         {message.ts && (

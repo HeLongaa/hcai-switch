@@ -1,12 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Wrench,
-  Trash2,
-  ExternalLink,
-  RefreshCw,
-  Loader2,
-} from "lucide-react";
+import { Wrench, Trash2, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -71,412 +65,428 @@ function formatSkillBackupDate(unixSeconds: number): string {
 const UnifiedSkillsPanel = React.forwardRef<
   UnifiedSkillsPanelHandle,
   UnifiedSkillsPanelProps
->(({ onOpenDiscovery, currentApp, leftOffset: _leftOffset, topOffset: _topOffset }, ref) => {
-  const { t } = useTranslation();
-  const [confirmDialog, setConfirmDialog] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    confirmText?: string;
-    variant?: "destructive" | "info";
-    onConfirm: () => void;
-  } | null>(null);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+>(
+  (
+    {
+      onOpenDiscovery,
+      currentApp,
+      leftOffset: _leftOffset,
+      topOffset: _topOffset,
+    },
+    ref,
+  ) => {
+    const { t } = useTranslation();
+    const [confirmDialog, setConfirmDialog] = useState<{
+      isOpen: boolean;
+      title: string;
+      message: string;
+      confirmText?: string;
+      variant?: "destructive" | "info";
+      onConfirm: () => void;
+    } | null>(null);
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
 
-  const { data: skills, isLoading } = useInstalledSkills();
-  const {
-    data: skillBackups = [],
-    refetch: refetchSkillBackups,
-    isFetching: isFetchingSkillBackups,
-  } = useSkillBackups();
-  const deleteBackupMutation = useDeleteSkillBackup();
-  const toggleAppMutation = useToggleSkillApp();
-  const uninstallMutation = useUninstallSkill();
-  const restoreBackupMutation = useRestoreSkillBackup();
-  // enabled: true —— 进入 Skill 页面时自动静默扫描一次（绿点提示来源）
-  const { data: unmanagedSkills, refetch: scanUnmanaged } =
-    useScanUnmanagedSkills({ enabled: true });
-  const importMutation = useImportSkillsFromApps();
-  const installFromZipMutation = useInstallSkillsFromZip();
-  const {
-    data: skillUpdates,
-    refetch: checkUpdates,
-    isFetching: isCheckingUpdates,
-  } = useCheckSkillUpdates();
-  const updateSkillMutation = useUpdateSkill();
-  const [isUpdatingAll, setIsUpdatingAll] = useState(false);
+    const { data: skills, isLoading } = useInstalledSkills();
+    const {
+      data: skillBackups = [],
+      refetch: refetchSkillBackups,
+      isFetching: isFetchingSkillBackups,
+    } = useSkillBackups();
+    const deleteBackupMutation = useDeleteSkillBackup();
+    const toggleAppMutation = useToggleSkillApp();
+    const uninstallMutation = useUninstallSkill();
+    const restoreBackupMutation = useRestoreSkillBackup();
+    // enabled: true —— 进入 Skill 页面时自动静默扫描一次（绿点提示来源）
+    const { data: unmanagedSkills, refetch: scanUnmanaged } =
+      useScanUnmanagedSkills({ enabled: true });
+    const importMutation = useImportSkillsFromApps();
+    const installFromZipMutation = useInstallSkillsFromZip();
+    const {
+      data: skillUpdates,
+      refetch: checkUpdates,
+      isFetching: isCheckingUpdates,
+    } = useCheckSkillUpdates();
+    const updateSkillMutation = useUpdateSkill();
+    const [isUpdatingAll, setIsUpdatingAll] = useState(false);
 
-  const updatesMap = useMemo(() => {
-    const map: Record<string, SkillUpdateInfo> = {};
-    if (skillUpdates) {
-      for (const u of skillUpdates) {
-        map[u.id] = u;
+    const updatesMap = useMemo(() => {
+      const map: Record<string, SkillUpdateInfo> = {};
+      if (skillUpdates) {
+        for (const u of skillUpdates) {
+          map[u.id] = u;
+        }
       }
-    }
-    return map;
-  }, [skillUpdates]);
+      return map;
+    }, [skillUpdates]);
 
-  const enabledCounts = useMemo(() => {
-    const counts: Partial<Record<AppId, number>> = {
-      claude: 0,
-      "claude-desktop": 0,
-      codex: 0,
-      opencode: 0,
-      grok: 0,
+    const enabledCounts = useMemo(() => {
+      const counts: Partial<Record<AppId, number>> = {
+        claude: 0,
+        "claude-desktop": 0,
+        codex: 0,
+        opencode: 0,
+        grok: 0,
+      };
+      if (!skills) return counts;
+      skills.forEach((skill) => {
+        for (const app of SKILLS_APP_IDS) {
+          if (skill.apps[app]) counts[app] = (counts[app] ?? 0) + 1;
+        }
+      });
+      return counts;
+    }, [skills]);
+
+    const handleToggleApp = async (
+      id: string,
+      app: AppId,
+      enabled: boolean,
+    ) => {
+      try {
+        await toggleAppMutation.mutateAsync({ id, app, enabled });
+      } catch (error) {
+        toast.error(t("common.error"), { description: String(error) });
+      }
     };
-    if (!skills) return counts;
-    skills.forEach((skill) => {
-      for (const app of SKILLS_APP_IDS) {
-        if (skill.apps[app]) counts[app] = (counts[app] ?? 0) + 1;
+
+    const handleUninstall = (skill: InstalledSkill) => {
+      setConfirmDialog({
+        isOpen: true,
+        title: t("skills.uninstall"),
+        message: t("skills.uninstallConfirm", { name: skill.name }),
+        onConfirm: async () => {
+          try {
+            // 构建 skillKey 用于更新 discoverable 缓存
+            const installName =
+              skill.directory.split(/[/\\]/).pop()?.toLowerCase() ||
+              skill.directory.toLowerCase();
+            const skillKey = `${installName}:${skill.repoOwner?.toLowerCase() || ""}:${skill.repoName?.toLowerCase() || ""}`;
+
+            const result = await uninstallMutation.mutateAsync({
+              id: skill.id,
+              skillKey,
+            });
+            setConfirmDialog(null);
+            toast.success(t("skills.uninstallSuccess", { name: skill.name }), {
+              description: result.backupPath
+                ? t("skills.backup.location", { path: result.backupPath })
+                : undefined,
+              closeButton: true,
+            });
+          } catch (error) {
+            toast.error(t("common.error"), { description: String(error) });
+          }
+        },
+      });
+    };
+
+    const handleOpenImport = async () => {
+      try {
+        const result = await scanUnmanaged();
+        if (!result.data || result.data.length === 0) {
+          toast.success(t("skills.noUnmanagedFound"), { closeButton: true });
+          return;
+        }
+        setImportDialogOpen(true);
+      } catch (error) {
+        toast.error(t("common.error"), { description: String(error) });
       }
-    });
-    return counts;
-  }, [skills]);
+    };
 
-  const handleToggleApp = async (id: string, app: AppId, enabled: boolean) => {
-    try {
-      await toggleAppMutation.mutateAsync({ id, app, enabled });
-    } catch (error) {
-      toast.error(t("common.error"), { description: String(error) });
-    }
-  };
+    const handleImport = async (imports: ImportSkillSelection[]) => {
+      try {
+        const imported = await importMutation.mutateAsync(imports);
+        setImportDialogOpen(false);
+        toast.success(t("skills.importSuccess", { count: imported.length }), {
+          closeButton: true,
+        });
+      } catch (error) {
+        toast.error(t("common.error"), { description: String(error) });
+      }
+    };
 
-  const handleUninstall = (skill: InstalledSkill) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: t("skills.uninstall"),
-      message: t("skills.uninstallConfirm", { name: skill.name }),
-      onConfirm: async () => {
-        try {
-          // 构建 skillKey 用于更新 discoverable 缓存
-          const installName =
-            skill.directory.split(/[/\\]/).pop()?.toLowerCase() ||
-            skill.directory.toLowerCase();
-          const skillKey = `${installName}:${skill.repoOwner?.toLowerCase() || ""}:${skill.repoName?.toLowerCase() || ""}`;
+    const handleInstallFromZip = async () => {
+      try {
+        const filePath = await skillsApi.openZipFileDialog();
+        if (!filePath) return;
 
-          const result = await uninstallMutation.mutateAsync({
-            id: skill.id,
-            skillKey,
-          });
-          setConfirmDialog(null);
-          toast.success(t("skills.uninstallSuccess", { name: skill.name }), {
-            description: result.backupPath
-              ? t("skills.backup.location", { path: result.backupPath })
-              : undefined,
+        const installed = await installFromZipMutation.mutateAsync({
+          filePath,
+          currentApp,
+        });
+
+        if (installed.length === 0) {
+          toast.info(t("skills.installFromZip.noSkillsFound"), {
             closeButton: true,
           });
-        } catch (error) {
-          toast.error(t("common.error"), { description: String(error) });
-        }
-      },
-    });
-  };
-
-  const handleOpenImport = async () => {
-    try {
-      const result = await scanUnmanaged();
-      if (!result.data || result.data.length === 0) {
-        toast.success(t("skills.noUnmanagedFound"), { closeButton: true });
-        return;
-      }
-      setImportDialogOpen(true);
-    } catch (error) {
-      toast.error(t("common.error"), { description: String(error) });
-    }
-  };
-
-  const handleImport = async (imports: ImportSkillSelection[]) => {
-    try {
-      const imported = await importMutation.mutateAsync(imports);
-      setImportDialogOpen(false);
-      toast.success(t("skills.importSuccess", { count: imported.length }), {
-        closeButton: true,
-      });
-    } catch (error) {
-      toast.error(t("common.error"), { description: String(error) });
-    }
-  };
-
-  const handleInstallFromZip = async () => {
-    try {
-      const filePath = await skillsApi.openZipFileDialog();
-      if (!filePath) return;
-
-      const installed = await installFromZipMutation.mutateAsync({
-        filePath,
-        currentApp,
-      });
-
-      if (installed.length === 0) {
-        toast.info(t("skills.installFromZip.noSkillsFound"), {
-          closeButton: true,
-        });
-      } else if (installed.length === 1) {
-        toast.success(
-          t("skills.installFromZip.successSingle", { name: installed[0].name }),
-          { closeButton: true },
-        );
-      } else {
-        toast.success(
-          t("skills.installFromZip.successMultiple", {
-            count: installed.length,
-          }),
-          { closeButton: true },
-        );
-      }
-    } catch (error) {
-      toast.error(t("skills.installFailed"), { description: String(error) });
-    }
-  };
-
-  const handleCheckUpdates = async () => {
-    try {
-      const result = await checkUpdates();
-      const updates = result.data || [];
-      if (updates.length === 0) {
-        toast.success(t("skills.noUpdates"), { closeButton: true });
-      } else {
-        toast.info(t("skills.updatesFound", { count: updates.length }), {
-          closeButton: true,
-        });
-      }
-    } catch (error) {
-      toast.error(t("common.error"), { description: String(error) });
-    }
-  };
-
-  const handleUpdateSkill = async (skill: InstalledSkill) => {
-    try {
-      const updated = await updateSkillMutation.mutateAsync(skill.id);
-      toast.success(t("skills.updateSuccess", { name: updated.name }), {
-        closeButton: true,
-      });
-    } catch (error) {
-      toast.error(t("skills.updateFailed"), { description: String(error) });
-    }
-  };
-
-  const handleUpdateAll = async () => {
-    if (!skillUpdates || skillUpdates.length === 0) return;
-    setIsUpdatingAll(true);
-    let successCount = 0;
-    for (const update of skillUpdates) {
-      try {
-        await updateSkillMutation.mutateAsync(update.id);
-        successCount++;
-      } catch (error) {
-        toast.error(t("skills.updateFailed"), {
-          description: `${update.name}: ${String(error)}`,
-        });
-      }
-    }
-    setIsUpdatingAll(false);
-    if (successCount > 0) {
-      toast.success(t("skills.updateAllSuccess", { count: successCount }), {
-        closeButton: true,
-      });
-    }
-  };
-
-  const handleOpenRestoreFromBackup = async () => {
-    setRestoreDialogOpen(true);
-    try {
-      await refetchSkillBackups();
-    } catch (error) {
-      toast.error(t("common.error"), { description: String(error) });
-    }
-  };
-
-  const handleRestoreFromBackup = async (backupId: string) => {
-    try {
-      const restored = await restoreBackupMutation.mutateAsync({
-        backupId,
-        currentApp,
-      });
-      setRestoreDialogOpen(false);
-      toast.success(
-        t("skills.restoreFromBackup.success", { name: restored.name }),
-        {
-          closeButton: true,
-        },
-      );
-    } catch (error) {
-      toast.error(t("skills.restoreFromBackup.failed"), {
-        description: String(error),
-      });
-    }
-  };
-
-  const handleDeleteBackup = (backup: SkillBackupEntry) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: t("skills.restoreFromBackup.deleteConfirmTitle"),
-      message: t("skills.restoreFromBackup.deleteConfirmMessage", {
-        name: backup.skill.name,
-      }),
-      confirmText: t("skills.restoreFromBackup.delete"),
-      variant: "destructive",
-      onConfirm: async () => {
-        try {
-          await deleteBackupMutation.mutateAsync(backup.backupId);
-          await refetchSkillBackups();
-          setConfirmDialog(null);
+        } else if (installed.length === 1) {
           toast.success(
-            t("skills.restoreFromBackup.deleteSuccess", {
-              name: backup.skill.name,
+            t("skills.installFromZip.successSingle", {
+              name: installed[0].name,
             }),
-            {
-              closeButton: true,
-            },
+            { closeButton: true },
           );
-        } catch (error) {
-          toast.error(t("skills.restoreFromBackup.deleteFailed"), {
-            description: String(error),
+        } else {
+          toast.success(
+            t("skills.installFromZip.successMultiple", {
+              count: installed.length,
+            }),
+            { closeButton: true },
+          );
+        }
+      } catch (error) {
+        toast.error(t("skills.installFailed"), { description: String(error) });
+      }
+    };
+
+    const handleCheckUpdates = async () => {
+      try {
+        const result = await checkUpdates();
+        const updates = result.data || [];
+        if (updates.length === 0) {
+          toast.success(t("skills.noUpdates"), { closeButton: true });
+        } else {
+          toast.info(t("skills.updatesFound", { count: updates.length }), {
+            closeButton: true,
           });
         }
-      },
-    });
-  };
+      } catch (error) {
+        toast.error(t("common.error"), { description: String(error) });
+      }
+    };
 
-  React.useImperativeHandle(ref, () => ({
-    openDiscovery: onOpenDiscovery,
-    openImport: handleOpenImport,
-    openInstallFromZip: handleInstallFromZip,
-    openRestoreFromBackup: handleOpenRestoreFromBackup,
-    checkUpdates: handleCheckUpdates,
-  }));
+    const handleUpdateSkill = async (skill: InstalledSkill) => {
+      try {
+        const updated = await updateSkillMutation.mutateAsync(skill.id);
+        toast.success(t("skills.updateSuccess", { name: updated.name }), {
+          closeButton: true,
+        });
+      } catch (error) {
+        toast.error(t("skills.updateFailed"), { description: String(error) });
+      }
+    };
 
-  return (
-    <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div className="flex items-center justify-between">
-        <AppCountBar
-          totalLabel={t("skills.installed", { count: skills?.length || 0 })}
-          counts={enabledCounts}
-          appIds={SKILLS_APP_IDS}
-        />
-        <div className="flex items-center gap-1.5">
-          <div
-            className="transition-all duration-300 ease-out overflow-hidden"
-            style={{
-              maxWidth:
-                skillUpdates && skillUpdates.length > 0 ? "200px" : "0px",
-              opacity: skillUpdates && skillUpdates.length > 0 ? 1 : 0,
-            }}
-          >
+    const handleUpdateAll = async () => {
+      if (!skillUpdates || skillUpdates.length === 0) return;
+      setIsUpdatingAll(true);
+      let successCount = 0;
+      for (const update of skillUpdates) {
+        try {
+          await updateSkillMutation.mutateAsync(update.id);
+          successCount++;
+        } catch (error) {
+          toast.error(t("skills.updateFailed"), {
+            description: `${update.name}: ${String(error)}`,
+          });
+        }
+      }
+      setIsUpdatingAll(false);
+      if (successCount > 0) {
+        toast.success(t("skills.updateAllSuccess", { count: successCount }), {
+          closeButton: true,
+        });
+      }
+    };
+
+    const handleOpenRestoreFromBackup = async () => {
+      setRestoreDialogOpen(true);
+      try {
+        await refetchSkillBackups();
+      } catch (error) {
+        toast.error(t("common.error"), { description: String(error) });
+      }
+    };
+
+    const handleRestoreFromBackup = async (backupId: string) => {
+      try {
+        const restored = await restoreBackupMutation.mutateAsync({
+          backupId,
+          currentApp,
+        });
+        setRestoreDialogOpen(false);
+        toast.success(
+          t("skills.restoreFromBackup.success", { name: restored.name }),
+          {
+            closeButton: true,
+          },
+        );
+      } catch (error) {
+        toast.error(t("skills.restoreFromBackup.failed"), {
+          description: String(error),
+        });
+      }
+    };
+
+    const handleDeleteBackup = (backup: SkillBackupEntry) => {
+      setConfirmDialog({
+        isOpen: true,
+        title: t("skills.restoreFromBackup.deleteConfirmTitle"),
+        message: t("skills.restoreFromBackup.deleteConfirmMessage", {
+          name: backup.skill.name,
+        }),
+        confirmText: t("skills.restoreFromBackup.delete"),
+        variant: "destructive",
+        onConfirm: async () => {
+          try {
+            await deleteBackupMutation.mutateAsync(backup.backupId);
+            await refetchSkillBackups();
+            setConfirmDialog(null);
+            toast.success(
+              t("skills.restoreFromBackup.deleteSuccess", {
+                name: backup.skill.name,
+              }),
+              {
+                closeButton: true,
+              },
+            );
+          } catch (error) {
+            toast.error(t("skills.restoreFromBackup.deleteFailed"), {
+              description: String(error),
+            });
+          }
+        },
+      });
+    };
+
+    React.useImperativeHandle(ref, () => ({
+      openDiscovery: onOpenDiscovery,
+      openImport: handleOpenImport,
+      openInstallFromZip: handleInstallFromZip,
+      openRestoreFromBackup: handleOpenRestoreFromBackup,
+      checkUpdates: handleCheckUpdates,
+    }));
+
+    return (
+      <div className="px-6 flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex items-center justify-between">
+          <AppCountBar
+            totalLabel={t("skills.installed", { count: skills?.length || 0 })}
+            counts={enabledCounts}
+            appIds={SKILLS_APP_IDS}
+          />
+          <div className="flex items-center gap-1.5">
+            <div
+              className="transition-all duration-300 ease-out overflow-hidden"
+              style={{
+                maxWidth:
+                  skillUpdates && skillUpdates.length > 0 ? "200px" : "0px",
+                opacity: skillUpdates && skillUpdates.length > 0 ? 1 : 0,
+              }}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1 whitespace-nowrap"
+                onClick={handleUpdateAll}
+                disabled={isUpdatingAll || updateSkillMutation.isPending}
+              >
+                {isUpdatingAll ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={12} />
+                )}
+                {isUpdatingAll
+                  ? t("skills.updatingAll")
+                  : t("skills.updateAll", { count: skillUpdates?.length ?? 0 })}
+              </Button>
+            </div>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-7 text-xs gap-1 whitespace-nowrap"
-              onClick={handleUpdateAll}
-              disabled={isUpdatingAll || updateSkillMutation.isPending}
+              className="h-7 text-xs gap-1"
+              onClick={handleCheckUpdates}
+              disabled={isCheckingUpdates || !skills || skills.length === 0}
             >
-              {isUpdatingAll ? (
+              {isCheckingUpdates ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <RefreshCw size={12} />
               )}
-              {isUpdatingAll
-                ? t("skills.updatingAll")
-                : t("skills.updateAll", { count: skillUpdates?.length ?? 0 })}
+              {isCheckingUpdates
+                ? t("skills.checkingUpdates")
+                : t("skills.checkUpdates")}
             </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            onClick={handleCheckUpdates}
-            disabled={isCheckingUpdates || !skills || skills.length === 0}
-          >
-            {isCheckingUpdates ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <RefreshCw size={12} />
-            )}
-            {isCheckingUpdates
-              ? t("skills.checkingUpdates")
-              : t("skills.checkUpdates")}
-          </Button>
         </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
-        {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            {t("skills.loading")}
-          </div>
-        ) : !skills || skills.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-              <Wrench size={24} className="text-muted-foreground" />
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24">
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">
+              {t("skills.loading")}
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">
-              {t("skills.noInstalled")}
-            </h3>
-            <p className="text-muted-foreground text-sm">
-              {t("skills.noInstalledDescription")}
-            </p>
-          </div>
-        ) : (
-          <TooltipProvider delayDuration={300}>
-            <div className="rounded-xl border border-border-default overflow-hidden">
-              {skills.map((skill, index) => (
-                <InstalledSkillListItem
-                  key={skill.id}
-                  skill={skill}
-                  hasUpdate={!!updatesMap[skill.id]}
-                  isUpdating={
-                    updateSkillMutation.isPending &&
-                    updateSkillMutation.variables === skill.id
-                  }
-                  onToggleApp={handleToggleApp}
-                  onUninstall={() => handleUninstall(skill)}
-                  onUpdate={() => handleUpdateSkill(skill)}
-                  isLast={index === skills.length - 1}
-                />
-              ))}
+          ) : !skills || skills.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
+                <Wrench size={24} className="text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {t("skills.noInstalled")}
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                {t("skills.noInstalledDescription")}
+              </p>
             </div>
-          </TooltipProvider>
+          ) : (
+            <TooltipProvider delayDuration={300}>
+              <div className="rounded-xl border border-border-default overflow-hidden">
+                {skills.map((skill, index) => (
+                  <InstalledSkillListItem
+                    key={skill.id}
+                    skill={skill}
+                    hasUpdate={!!updatesMap[skill.id]}
+                    isUpdating={
+                      updateSkillMutation.isPending &&
+                      updateSkillMutation.variables === skill.id
+                    }
+                    onToggleApp={handleToggleApp}
+                    onUninstall={() => handleUninstall(skill)}
+                    onUpdate={() => handleUpdateSkill(skill)}
+                    isLast={index === skills.length - 1}
+                  />
+                ))}
+              </div>
+            </TooltipProvider>
+          )}
+        </div>
+
+        {confirmDialog && (
+          <ConfirmDialog
+            isOpen={confirmDialog.isOpen}
+            title={confirmDialog.title}
+            message={confirmDialog.message}
+            confirmText={confirmDialog.confirmText}
+            variant={confirmDialog.variant}
+            zIndex="top"
+            onConfirm={confirmDialog.onConfirm}
+            onCancel={() => setConfirmDialog(null)}
+          />
         )}
+
+        {importDialogOpen && unmanagedSkills && (
+          <ImportSkillsDialog
+            skills={unmanagedSkills}
+            isImporting={importMutation.isPending}
+            onImport={handleImport}
+            onClose={() => setImportDialogOpen(false)}
+          />
+        )}
+
+        <RestoreSkillsDialog
+          backups={skillBackups}
+          isDeleting={deleteBackupMutation.isPending}
+          isLoading={isFetchingSkillBackups}
+          onDelete={handleDeleteBackup}
+          isRestoring={restoreBackupMutation.isPending}
+          onRestore={handleRestoreFromBackup}
+          onClose={() => setRestoreDialogOpen(false)}
+          open={restoreDialogOpen}
+        />
       </div>
-
-      {confirmDialog && (
-        <ConfirmDialog
-          isOpen={confirmDialog.isOpen}
-          title={confirmDialog.title}
-          message={confirmDialog.message}
-          confirmText={confirmDialog.confirmText}
-          variant={confirmDialog.variant}
-          zIndex="top"
-          onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
-        />
-      )}
-
-      {importDialogOpen && unmanagedSkills && (
-        <ImportSkillsDialog
-          skills={unmanagedSkills}
-          isImporting={importMutation.isPending}
-          onImport={handleImport}
-          onClose={() => setImportDialogOpen(false)}
-        />
-      )}
-
-      <RestoreSkillsDialog
-        backups={skillBackups}
-        isDeleting={deleteBackupMutation.isPending}
-        isLoading={isFetchingSkillBackups}
-        onDelete={handleDeleteBackup}
-        isRestoring={restoreBackupMutation.isPending}
-        onRestore={handleRestoreFromBackup}
-        onClose={() => setRestoreDialogOpen(false)}
-        open={restoreDialogOpen}
-      />
-    </div>
-  );
-});
+    );
+  },
+);
 
 UnifiedSkillsPanel.displayName = "UnifiedSkillsPanel";
 
@@ -806,13 +816,15 @@ const ImportSkillsDialog: React.FC<ImportSkillsDialogProps> = ({
                   <div className="mt-2">
                     <AppToggleGroup
                       apps={
-                        selectedApps[skill.directory] ?? getDefaultAppsForFound([])
+                        selectedApps[skill.directory] ??
+                        getDefaultAppsForFound([])
                       }
                       onToggle={(app, enabled) => {
                         setSelectedApps((prev) => ({
                           ...prev,
                           [skill.directory]: {
-                            ...(prev[skill.directory] ?? getDefaultAppsForFound([])),
+                            ...(prev[skill.directory] ??
+                              getDefaultAppsForFound([])),
                             [app]: enabled,
                           },
                         }));

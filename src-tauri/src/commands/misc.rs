@@ -13,8 +13,6 @@ use tauri::Emitter;
 use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
-use dirs;
-
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
@@ -54,17 +52,24 @@ const CODEX_APPCAST_X64: &str = "https://codexapp.agentsmirror.com/latest/appcas
 
 // Mirror fallback / primary sources (as per user requirements)
 const CODEX_MIRROR_BASE: &str = "https://software.lumocore.edu.kg/codex-app/latest";
-const CODEX_MIRROR_MANIFEST: &str = "https://software.lumocore.edu.kg/codex-app/latest/release-manifest.json";
-const CODEX_MIRROR_SHA256SUMS: &str = "https://software.lumocore.edu.kg/codex-app/latest/SHA256SUMS.txt";
+const CODEX_MIRROR_MANIFEST: &str =
+    "https://software.lumocore.edu.kg/codex-app/latest/release-manifest.json";
+const CODEX_MIRROR_SHA256SUMS: &str =
+    "https://software.lumocore.edu.kg/codex-app/latest/SHA256SUMS.txt";
 
 const CLAUDE_MIRROR_BASE: &str = "https://software.lumocore.edu.kg/claude-desktop/latest";
-const CLAUDE_MIRROR_MANIFEST: &str = "https://software.lumocore.edu.kg/claude-desktop/latest/release-manifest.json";
-const CLAUDE_MIRROR_SHA256SUMS: &str = "https://software.lumocore.edu.kg/claude-desktop/latest/SHA256SUMS.txt";
+const CLAUDE_MIRROR_MANIFEST: &str =
+    "https://software.lumocore.edu.kg/claude-desktop/latest/release-manifest.json";
+const CLAUDE_MIRROR_SHA256SUMS: &str =
+    "https://software.lumocore.edu.kg/claude-desktop/latest/SHA256SUMS.txt";
 
 // Official Claude redirect endpoints for fallback
-const CLAUDE_OFFICIAL_MAC_DMG_REDIRECT: &str = "https://claude.ai/api/desktop/darwin/universal/dmg/latest/redirect";
-const CLAUDE_OFFICIAL_WIN_X64_REDIRECT: &str = "https://claude.ai/api/desktop/win32/x64/msix/latest/redirect";
-const CLAUDE_OFFICIAL_WIN_ARM64_REDIRECT: &str = "https://claude.ai/api/desktop/win32/arm64/msix/latest/redirect";
+const CLAUDE_OFFICIAL_MAC_DMG_REDIRECT: &str =
+    "https://claude.ai/api/desktop/darwin/universal/dmg/latest/redirect";
+const CLAUDE_OFFICIAL_WIN_X64_REDIRECT: &str =
+    "https://claude.ai/api/desktop/win32/x64/msix/latest/redirect";
+const CLAUDE_OFFICIAL_WIN_ARM64_REDIRECT: &str =
+    "https://claude.ai/api/desktop/win32/arm64/msix/latest/redirect";
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,14 +99,23 @@ pub async fn get_codex_desktop_latest() -> Result<CodexDesktopLatestInfo, String
     } else if cfg!(target_os = "windows") {
         // Windows 使用类似 manifest，暂时返回构造的最新链接（实际可扩展为 manifest 解析）
         // 这里使用与 mac 镜像相同的域名，文件名模式基于观察
-        let arch = if std::env::consts::ARCH == "aarch64" { "arm64" } else { "x64" };
+        let arch = if std::env::consts::ARCH == "aarch64" {
+            "arm64"
+        } else {
+            "x64"
+        };
         return Ok(CodexDesktopLatestInfo {
             version: "latest".to_string(),
             build: None,
-            download_url: format!("https://codexapp.agentsmirror.com/latest/win/{}/Codex-Setup.exe", arch),
+            download_url: format!(
+                "https://codexapp.agentsmirror.com/latest/win/{}/Codex-Setup.exe",
+                arch
+            ),
             size: 0,
             arch: arch.to_string(),
-            notes: Some("Windows 安装包（完整下载）。建议使用 Codex App Manager 获得增量体验。".to_string()),
+            notes: Some(
+                "Windows 安装包（完整下载）。建议使用 Codex App Manager 获得增量体验。".to_string(),
+            ),
             full_size: 0,
             has_deltas: false,
         });
@@ -117,27 +131,29 @@ pub async fn get_codex_desktop_latest() -> Result<CodexDesktopLatestInfo, String
         .map_err(|e| format!("读取 appcast 失败: {}", e))?;
 
     // 解析 enclosure（优先抓第一个，通常是 full 包）
-    let enclosure_re = regex::Regex::new(
-        r#"<enclosure[^>]*url="([^"]+)"[^>]*length="(\d+)"[^>]*>"#,
-    )
-    .map_err(|e| e.to_string())?;
+    let enclosure_re =
+        regex::Regex::new(r#"<enclosure[^>]*url="([^"]+)"[^>]*length="(\d+)"[^>]*>"#)
+            .map_err(|e| e.to_string())?;
 
-    let short_ver_re = regex::Regex::new(
-        r#"<sparkle:shortVersionString>([^<]+)</sparkle:shortVersionString>"#,
-    )
-    .map_err(|e| e.to_string())?;
+    let short_ver_re =
+        regex::Regex::new(r#"<sparkle:shortVersionString>([^<]+)</sparkle:shortVersionString>"#)
+            .map_err(|e| e.to_string())?;
 
-    let build_re = regex::Regex::new(
-        r#"<sparkle:version>([^<]+)</sparkle:version>"#,
-    )
-    .map_err(|e| e.to_string())?;
+    let build_re = regex::Regex::new(r#"<sparkle:version>([^<]+)</sparkle:version>"#)
+        .map_err(|e| e.to_string())?;
 
     // 检测 deltas 存在（<sparkle:deltas> 里有 enclosure）
     let has_deltas = xml.contains("<sparkle:deltas>") || xml.contains("deltaFrom");
 
     let (download_url, size) = if let Some(cap) = enclosure_re.captures(&xml) {
-        let url = cap.get(1).map(|m| m.as_str().to_string()).unwrap_or_default();
-        let size: u64 = cap.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+        let url = cap
+            .get(1)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+        let size: u64 = cap
+            .get(2)
+            .and_then(|m| m.as_str().parse().ok())
+            .unwrap_or(0);
         (url, size)
     } else {
         return Err("无法从 appcast 解析下载地址".to_string());
@@ -194,12 +210,12 @@ pub async fn get_codex_desktop_install_status() -> Result<CodexDesktopInstallSta
                 path: Some(path),
             });
         }
-        return Ok(CodexDesktopInstallStatus {
+        Ok(CodexDesktopInstallStatus {
             installed: false,
             version: None,
             build: None,
             path: None,
-        });
+        })
     }
 
     #[cfg(windows)]
@@ -251,7 +267,11 @@ fn get_macos_codex_version_and_build(app_path: &str) -> (Option<String>, Option<
         .ok()
         .and_then(|o| {
             let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() { None } else { Some(s) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
         });
 
     let build = Command::new("defaults")
@@ -295,7 +315,9 @@ async fn fetch_text_with_timeout(url: &str, timeout_secs: u64) -> Result<String,
         let body = resp.text().await.unwrap_or_default();
         return Err(format!("{} 返回非成功状态 {}: {}", url, status, body));
     }
-    resp.text().await.map_err(|e| format!("读取 {} 响应失败: {}", url, e))
+    resp.text()
+        .await
+        .map_err(|e| format!("读取 {} 响应失败: {}", url, e))
 }
 
 async fn fetch_bytes_with_timeout(url: &str, timeout_secs: u64) -> Result<Vec<u8>, String> {
@@ -312,7 +334,10 @@ async fn fetch_bytes_with_timeout(url: &str, timeout_secs: u64) -> Result<Vec<u8
     if !resp.status().is_success() {
         return Err(format!("下载 {} 失败，状态: {}", url, resp.status()));
     }
-    let b = resp.bytes().await.map_err(|e| format!("读取下载内容失败: {}", e))?;
+    let b = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("读取下载内容失败: {}", e))?;
     Ok(b.to_vec())
 }
 
@@ -322,14 +347,17 @@ async fn fetch_release_manifest(url: &str) -> Result<serde_json::Value, String> 
 }
 
 fn compute_file_sha256(path: &std::path::Path) -> Result<String, String> {
-    use std::io::Read;
     use sha2::Digest;
-    let mut file = std::fs::File::open(path).map_err(|e| format!("打开文件 {} 失败: {}", path.display(), e))?;
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)
+        .map_err(|e| format!("打开文件 {} 失败: {}", path.display(), e))?;
     let mut hasher = sha2::Sha256::new();
     let mut buffer = [0u8; 8192];
     loop {
         let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         hasher.update(&buffer[..n]);
     }
     let result = hasher.finalize();
@@ -339,7 +367,9 @@ fn compute_file_sha256(path: &std::path::Path) -> Result<String, String> {
 fn extract_sha256_from_sums(sums_text: &str, filename: &str) -> Result<String, String> {
     for line in sums_text.lines() {
         let line = line.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 2 {
             let hash = parts[0];
@@ -352,7 +382,11 @@ fn extract_sha256_from_sums(sums_text: &str, filename: &str) -> Result<String, S
     Err(format!("在 SHA256SUMS.txt 中未找到 {}", filename))
 }
 
-async fn verify_download_sha(path: &std::path::Path, filename: &str, sums_url: &str) -> Result<(), String> {
+async fn verify_download_sha(
+    path: &std::path::Path,
+    filename: &str,
+    sums_url: &str,
+) -> Result<(), String> {
     let sums = fetch_text_with_timeout(sums_url, 15).await?;
     let expected = extract_sha256_from_sums(&sums, filename)?;
     let actual = compute_file_sha256(path)?;
@@ -361,7 +395,11 @@ async fn verify_download_sha(path: &std::path::Path, filename: &str, sums_url: &
     } else {
         // 校验失败时删除坏文件
         let _ = std::fs::remove_file(path);
-        Err(format!("SHA256 校验失败: 期望 {} 实际 {}", &expected[..12], &actual[..12]))
+        Err(format!(
+            "SHA256 校验失败: 期望 {} 实际 {}",
+            &expected[..12],
+            &actual[..12]
+        ))
     }
 }
 
@@ -402,7 +440,8 @@ fn claude_mirror_platform_key() -> Option<&'static str> {
 async fn get_codex_mirror_download_info() -> Result<(String, String, String), String> {
     // returns (download_url, filename, version)
     let manifest = fetch_release_manifest(CODEX_MIRROR_MANIFEST).await?;
-    let key = codex_mirror_platform_key().ok_or_else(|| "当前平台不支持 Codex Desktop mirror 下载".to_string())?;
+    let key = codex_mirror_platform_key()
+        .ok_or_else(|| "当前平台不支持 Codex Desktop mirror 下载".to_string())?;
     let plat = manifest
         .get("platforms")
         .and_then(|p| p.get(key))
@@ -423,13 +462,22 @@ async fn get_codex_mirror_download_info() -> Result<(String, String, String), St
 
 async fn get_claude_mirror_download_info() -> Result<(String, String, String), String> {
     let manifest = fetch_release_manifest(CLAUDE_MIRROR_MANIFEST).await?;
-    let key = claude_mirror_platform_key().ok_or_else(|| "当前平台不支持 Claude Desktop mirror".to_string())?;
+    let key = claude_mirror_platform_key()
+        .ok_or_else(|| "当前平台不支持 Claude Desktop mirror".to_string())?;
     let plat = manifest
         .get("platforms")
         .and_then(|p| p.get(key))
         .ok_or_else(|| format!("manifest 缺少平台: {}", key))?;
-    let filename = plat.get("filename").and_then(|f| f.as_str()).ok_or("缺少 filename")?.to_string();
-    let version = manifest.get("version").and_then(|v| v.as_str()).unwrap_or("latest").to_string();
+    let filename = plat
+        .get("filename")
+        .and_then(|f| f.as_str())
+        .ok_or("缺少 filename")?
+        .to_string();
+    let version = manifest
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("latest")
+        .to_string();
     let url = format!("{}/{}", CLAUDE_MIRROR_BASE, filename);
     Ok((url, filename, version))
 }
@@ -444,7 +492,10 @@ pub async fn download_codex_desktop() -> Result<String, String> {
     // 主路径：原有官方（appcast 镜像）逻辑
     match download_codex_from_primary_source().await {
         Ok(path) => {
-            log::info!("[CodexDesktop] 下载成功，使用 official/primary source: {}", path);
+            log::info!(
+                "[CodexDesktop] 下载成功，使用 official/primary source: {}",
+                path
+            );
             Ok(path)
         }
         Err(primary_err) => {
@@ -478,7 +529,8 @@ async fn download_codex_from_primary_source() -> Result<String, String> {
 
     let final_path = target_dir.join(&file_name);
 
-    let bytes = fetch_bytes_with_timeout(&info.download_url, 300).await
+    let bytes = fetch_bytes_with_timeout(&info.download_url, 300)
+        .await
         .map_err(|e| format!("primary 下载失败: {}", e))?;
 
     std::fs::write(&final_path, &bytes).map_err(|e| format!("保存安装包失败: {}", e))?;
@@ -492,7 +544,8 @@ async fn download_codex_from_mirror_source() -> Result<String, String> {
 
     log::info!(
         "[CodexDesktop] 使用 mirror source: version={}, url={}",
-        version, download_url
+        version,
+        download_url
     );
 
     let base_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
@@ -501,7 +554,8 @@ async fn download_codex_from_mirror_source() -> Result<String, String> {
 
     let final_path = target_dir.join(&filename);
 
-    let bytes = fetch_bytes_with_timeout(&download_url, 300).await
+    let bytes = fetch_bytes_with_timeout(&download_url, 300)
+        .await
         .map_err(|e| format!("mirror 下载失败: {}", e))?;
 
     std::fs::write(&final_path, &bytes).map_err(|e| format!("保存安装包失败: {}", e))?;
@@ -570,7 +624,10 @@ pub struct ClaudeDesktopInstallStatus {
 pub async fn get_claude_desktop_latest() -> Result<ClaudeDesktopLatestInfo, String> {
     // 优先 mirror manifest
     if let Ok((url, _filename, version)) = get_claude_mirror_download_info().await {
-        log::info!("[ClaudeDesktop] latest info from mirror source, version={}", version);
+        log::info!(
+            "[ClaudeDesktop] latest info from mirror source, version={}",
+            version
+        );
         return Ok(ClaudeDesktopLatestInfo {
             version,
             download_url: url,
@@ -612,12 +669,12 @@ pub async fn get_claude_desktop_install_status() -> Result<ClaudeDesktopInstallS
                 path: Some(path),
             });
         }
-        return Ok(ClaudeDesktopInstallStatus {
+        Ok(ClaudeDesktopInstallStatus {
             installed: false,
             version: None,
             build: None,
             path: None,
-        });
+        })
     }
 
     #[cfg(target_os = "windows")]
@@ -681,7 +738,11 @@ fn get_macos_claude_version_and_build(app_path: &str) -> (Option<String>, Option
         .ok()
         .and_then(|o| {
             let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() { None } else { Some(s) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
         });
 
     let build = Command::new("defaults")
@@ -704,17 +765,25 @@ pub async fn download_claude_desktop() -> Result<String, String> {
         Ok((mirror_url, filename, version)) => {
             log::info!(
                 "[ClaudeDesktop] 使用 mirror source 下载: version={}, filename={}",
-                version, filename
+                version,
+                filename
             );
-            match download_and_verify_claude(&mirror_url, &filename, CLAUDE_MIRROR_SHA256SUMS).await {
+            match download_and_verify_claude(&mirror_url, &filename, CLAUDE_MIRROR_SHA256SUMS).await
+            {
                 Ok(path) => return Ok(path),
                 Err(e) => {
-                    log::warn!("[ClaudeDesktop] mirror 下载或校验失败: {}，fallback 到 official", e);
+                    log::warn!(
+                        "[ClaudeDesktop] mirror 下载或校验失败: {}，fallback 到 official",
+                        e
+                    );
                 }
             }
         }
         Err(e) => {
-            log::warn!("[ClaudeDesktop] 获取 mirror manifest 失败: {}，直接使用 official fallback", e);
+            log::warn!(
+                "[ClaudeDesktop] 获取 mirror manifest 失败: {}，直接使用 official fallback",
+                e
+            );
         }
     }
 
@@ -722,7 +791,11 @@ pub async fn download_claude_desktop() -> Result<String, String> {
     download_claude_from_official_fallback().await
 }
 
-async fn download_and_verify_claude(download_url: &str, filename: &str, sums_url: &str) -> Result<String, String> {
+async fn download_and_verify_claude(
+    download_url: &str,
+    filename: &str,
+    sums_url: &str,
+) -> Result<String, String> {
     let bytes = fetch_bytes_with_timeout(download_url, 300).await?;
 
     let base_dir = dirs::download_dir().unwrap_or_else(std::env::temp_dir);
@@ -746,7 +819,10 @@ async fn download_claude_from_official_fallback() -> Result<String, String> {
         CLAUDE_OFFICIAL_WIN_X64_REDIRECT
     };
 
-    log::info!("[ClaudeDesktop] 使用 official fallback source: {}", redirect);
+    log::info!(
+        "[ClaudeDesktop] 使用 official fallback source: {}",
+        redirect
+    );
 
     let bytes = fetch_bytes_with_timeout(redirect, 300).await?;
 
@@ -768,8 +844,13 @@ async fn download_claude_from_official_fallback() -> Result<String, String> {
     // 官方 fallback 时，如果 mirror sums 可用则尽量校验（使用 mirror 的 filename 规范）
     // 但因为 manifest 可能已失败，这里尽力尝试一次 manifest 来拿 filename 做校验
     if let Ok((_, canon_filename, _)) = get_claude_mirror_download_info().await {
-        if let Err(e) = verify_download_sha(&final_path, &canon_filename, CLAUDE_MIRROR_SHA256SUMS).await {
-            log::warn!("[ClaudeDesktop] official fallback 文件使用 mirror sums 校验失败（可忽略）: {}", e);
+        if let Err(e) =
+            verify_download_sha(&final_path, &canon_filename, CLAUDE_MIRROR_SHA256SUMS).await
+        {
+            log::warn!(
+                "[ClaudeDesktop] official fallback 文件使用 mirror sums 校验失败（可忽略）: {}",
+                e
+            );
             // 不中断，返回已下载的文件
         } else {
             log::info!("[ClaudeDesktop] official fallback 文件通过 mirror sums 校验");
@@ -893,15 +974,9 @@ fn find_installed_codex_desktop_path() -> Option<String> {
         }
     }
 
-    for p in candidates {
-        if Path::new(&p).exists() {
-            if is_codex_bundle(&p) {
-                return Some(p);
-            }
-        }
-    }
-
-    None
+    candidates
+        .into_iter()
+        .find(|p| Path::new(p).exists() && is_codex_bundle(p))
 }
 
 /// 读取 .app 的 CFBundleIdentifier 并判断是否为 Codex Desktop。
@@ -916,7 +991,9 @@ fn is_codex_bundle(app_path: &str) -> bool {
         .args(["read", &info_plist, "CFBundleIdentifier"])
         .output()
     {
-        let id = String::from_utf8_lossy(&output.stdout).trim().to_lowercase();
+        let id = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .to_lowercase();
 
         // 当前官方 Codex Desktop 的标识（2026 年版本）
         if id == "com.openai.codex" || id.contains("codex") {
@@ -1070,9 +1147,7 @@ fn restart_codex_desktop_linux() -> Result<(), String> {
     }
 
     // 最后兜底：尝试 xdg-open 如果有 .desktop
-    let _ = Command::new("xdg-open")
-        .arg("codex.desktop")
-        .spawn();
+    let _ = Command::new("xdg-open").arg("codex.desktop").spawn();
 
     // 检测是否至少有可执行线索，否则报未安装
     if is_likely_codex_desktop_on_linux(&home) {
@@ -1287,14 +1362,19 @@ pub async fn run_tool_lifecycle_action(
 /// 同时保留完整输出用于最终成功/失败判定和错误详情。
 /// 不再弹出可见终端窗口。
 #[cfg(not(target_os = "windows"))]
-fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, _label: &str) -> Result<(), String> {
+fn run_tool_lifecycle_silently(
+    app: &tauri::AppHandle,
+    command_line: &str,
+    _label: &str,
+) -> Result<(), String> {
     use std::process::{Command, Stdio};
     use std::thread;
 
     // 解析工具名（脚本中会 echo ========== ToolName ========== 作为分隔）
     // 这里做个简单兜底：如果单工具，取第一个 requested（上层已知）。
     // 更精确的解析放在流读取里，根据 echo 行动态更新当前 tool。
-    let default_tool = extract_first_tool_from_script(command_line).unwrap_or_else(|| "cli".to_string());
+    let default_tool =
+        extract_first_tool_from_script(command_line).unwrap_or_else(|| "cli".to_string());
 
     // 启动带管道的子进程
     let mut child = Command::new("bash")
@@ -1322,26 +1402,34 @@ fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, _labe
     });
 
     // 等待结束
-    let status = child.wait().map_err(|e| format!("等待安装进程结束失败: {e}"))?;
+    let status = child
+        .wait()
+        .map_err(|e| format!("等待安装进程结束失败: {e}"))?;
 
     // 构建一个模拟的 Output 用于 finish（我们已经流过了真实输出）
     // 为简单起见，这里直接基于 status 决定；更完整的 stdout/stderr 收集可后续增强。
     if status.success() {
         // 发射完成事件
-        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
-            tool: default_tool,
-            message: "completed".to_string(),
-            phase: "completed".to_string(),
-            percent: Some(100),
-        });
+        let _ = app.emit(
+            "tool-lifecycle-progress",
+            ToolLifecycleProgress {
+                tool: default_tool,
+                message: "completed".to_string(),
+                phase: "completed".to_string(),
+                percent: Some(100),
+            },
+        );
         Ok(())
     } else {
-        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
-            tool: default_tool,
-            message: "failed".to_string(),
-            phase: "failed".to_string(),
-            percent: None,
-        });
+        let _ = app.emit(
+            "tool-lifecycle-progress",
+            ToolLifecycleProgress {
+                tool: default_tool,
+                message: "failed".to_string(),
+                phase: "failed".to_string(),
+                percent: None,
+            },
+        );
         // 保持原有错误行为（无详细 stderr 时给通用消息）
         Err("命令执行失败".to_string())
     }
@@ -1382,32 +1470,34 @@ fn stream_lines_to_progress<R: std::io::Read>(
 ) {
     use std::io::{BufRead, BufReader};
     let buf = BufReader::new(reader);
-    for line_res in buf.lines() {
-        if let Ok(line) = line_res {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
+    for line in buf.lines().map_while(Result::ok) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
 
-            let percent = extract_percent_from_line(trimmed);
+        let percent = extract_percent_from_line(trimmed);
 
-            // 尝试从 echo 行更新当前 tool（多工具批处理时有用）
-            let current_tool = if trimmed.starts_with("========== ") && trimmed.ends_with(" ==========") {
-                let inner = trimmed
-                    .trim_start_matches("========== ")
-                    .trim_end_matches(" ==========");
-                normalize_tool_label_to_key(inner)
-            } else {
-                tool.to_string()
-            };
+        // 尝试从 echo 行更新当前 tool（多工具批处理时有用）
+        let current_tool = if trimmed.starts_with("========== ") && trimmed.ends_with(" ==========")
+        {
+            let inner = trimmed
+                .trim_start_matches("========== ")
+                .trim_end_matches(" ==========");
+            normalize_tool_label_to_key(inner)
+        } else {
+            tool.to_string()
+        };
 
-            let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
+        let _ = app.emit(
+            "tool-lifecycle-progress",
+            ToolLifecycleProgress {
                 tool: current_tool,
                 message: trimmed.to_string(),
                 phase: "running".to_string(),
                 percent,
-            });
-        }
+            },
+        );
     }
 }
 
@@ -1439,19 +1529,27 @@ fn extract_percent_from_line(line: &str) -> Option<u8> {
 /// 写临时 .bat 后用 `cmd /C` 执行，`CREATE_NO_WINDOW` 抑制 console 窗口。
 /// 为了进度条，这里也发射基本 starting/completed 事件（完整行流式可后续增强）。
 #[cfg(target_os = "windows")]
-fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, label: &str) -> Result<(), String> {
+fn run_tool_lifecycle_silently(
+    app: &tauri::AppHandle,
+    command_line: &str,
+    label: &str,
+) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
 
-    let default_tool = extract_first_tool_from_script(command_line).unwrap_or_else(|| "cli".to_string());
+    let default_tool =
+        extract_first_tool_from_script(command_line).unwrap_or_else(|| "cli".to_string());
 
     // 起始事件
-    let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
-        tool: default_tool.clone(),
-        message: "starting".to_string(),
-        phase: "starting".to_string(),
-        percent: Some(0),
-    });
+    let _ = app.emit(
+        "tool-lifecycle-progress",
+        ToolLifecycleProgress {
+            tool: default_tool.clone(),
+            message: "starting".to_string(),
+            phase: "starting".to_string(),
+            percent: Some(0),
+        },
+    );
 
     let bat_file =
         std::env::temp_dir().join(format!("cc_switch_{}_{}.bat", label, std::process::id()));
@@ -1464,23 +1562,32 @@ fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, label
         .output();
     let _ = std::fs::remove_file(&bat_file);
 
-    let success = output_res.as_ref().map(|o| o.status.success()).unwrap_or(false);
+    let success = output_res
+        .as_ref()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
 
     if success {
-        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
-            tool: default_tool,
-            message: "completed".to_string(),
-            phase: "completed".to_string(),
-            percent: Some(100),
-        });
+        let _ = app.emit(
+            "tool-lifecycle-progress",
+            ToolLifecycleProgress {
+                tool: default_tool,
+                message: "completed".to_string(),
+                phase: "completed".to_string(),
+                percent: Some(100),
+            },
+        );
         Ok(())
     } else {
-        let _ = app.emit("tool-lifecycle-progress", ToolLifecycleProgress {
-            tool: default_tool,
-            message: "failed".to_string(),
-            phase: "failed".to_string(),
-            percent: None,
-        });
+        let _ = app.emit(
+            "tool-lifecycle-progress",
+            ToolLifecycleProgress {
+                tool: default_tool,
+                message: "failed".to_string(),
+                phase: "failed".to_string(),
+                percent: None,
+            },
+        );
         // 回退到原有错误提取逻辑
         let output = output_res.map_err(|e| format!("启动安装进程失败: {e}"))?;
         finish_lifecycle_output(&output)
@@ -1489,6 +1596,7 @@ fn run_tool_lifecycle_silently(app: &tauri::AppHandle, command_line: &str, label
 
 /// 把子进程退出结果转成 `Result`：成功返回 `Ok`；失败提取 stderr（空则回退 stdout）
 /// 的末尾若干行作为错误详情，避免把整段安装日志塞进 toast。
+#[allow(dead_code)]
 fn finish_lifecycle_output(output: &std::process::Output) -> Result<(), String> {
     if output.status.success() {
         return Ok(());
@@ -1780,7 +1888,8 @@ fn codex_direct_npm_command() -> String {
 fn claude_direct_npm_command() -> String {
     #[cfg(target_os = "windows")]
     {
-        "npm i -g @anthropic-ai/claude-code@latest --registry=https://registry.npmmirror.com".to_string()
+        "npm i -g @anthropic-ai/claude-code@latest --registry=https://registry.npmmirror.com"
+            .to_string()
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -2141,8 +2250,7 @@ async fn get_preferred_latest_version(
     #[cfg(not(target_os = "windows"))]
     {
         let default_real = resolve_path_default(tool);
-        let brew_exe = resolve_path_default("brew")
-            .map(|p| p.to_string_lossy().into_owned());
+        let brew_exe = resolve_path_default("brew").map(|p| p.to_string_lossy().into_owned());
 
         if let Some(real) = default_real {
             let s = real.to_string_lossy().to_string();
@@ -2373,17 +2481,18 @@ fn parse_brew_info_version(json_text: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(json_text.trim()).ok()?;
 
     // 抽取“第一个条目”的通用逻辑
-    let item: Option<&serde_json::Value> = if let Some(casks) = v.get("casks").and_then(|x| x.as_array()) {
-        casks.first()
-    } else if let Some(formulae) = v.get("formulae").and_then(|x| x.as_array()) {
-        formulae.first()
-    } else if v.is_array() {
-        v.as_array().and_then(|a| a.first())
-    } else if v.is_object() {
-        Some(&v)
-    } else {
-        None
-    };
+    let item: Option<&serde_json::Value> =
+        if let Some(casks) = v.get("casks").and_then(|x| x.as_array()) {
+            casks.first()
+        } else if let Some(formulae) = v.get("formulae").and_then(|x| x.as_array()) {
+            formulae.first()
+        } else if v.is_array() {
+            v.as_array().and_then(|a| a.first())
+        } else if v.is_object() {
+            Some(&v)
+        } else {
+            None
+        };
 
     let first = item?;
 
@@ -3483,7 +3592,6 @@ fn parent_dir(p: &str) -> String {
 /// 非 Cellar 路径（= 不是 formula，可能是 Homebrew 的 node 装的 npm 全局包）返回 None。
 /// 关键区分：formula 即便内部用 node，真身也落在 `Cellar/<formula>/` 下；而 Homebrew
 /// npm 全局包落在 `/opt/homebrew/lib/node_modules`（不含 Cellar）。两者升级命令不同。
-#[cfg(not(target_os = "windows"))]
 fn brew_formula_from_path(real: &str) -> Option<String> {
     let mut segs = real.split('/');
     while let Some(seg) = segs.next() {
@@ -3497,7 +3605,6 @@ fn brew_formula_from_path(real: &str) -> Option<String> {
 /// 类似 brew_formula，但用于 Homebrew Cask（例如 claude-code 当前作为 cask 分发 CLI）。
 /// 真身路径会落在 `/opt/homebrew/Caskroom/claude-code/<ver>/...`。
 /// 升级命令应使用 `brew upgrade --cask <name>` 而非普通 formula。
-#[cfg(not(target_os = "windows"))]
 fn homebrew_cask_from_path(real: &str) -> Option<String> {
     let mut segs = real.split('/');
     while let Some(seg) = segs.next() {
@@ -3808,7 +3915,9 @@ fn anchored_command_from_paths(tool: &str, bin_path: &str, real_target: &str) ->
         return anchored_official_update_command(tool, bin_path);
     }
     let package_command = package_manager_anchored_command_from_paths(tool, bin_path, real_target);
-    if homebrew_cask_from_path(real_target).is_some() || brew_formula_from_path(real_target).is_some() {
+    if homebrew_cask_from_path(real_target).is_some()
+        || brew_formula_from_path(real_target).is_some()
+    {
         return package_command;
     }
     if prefers_official_update(tool, LifecycleCommandShell::Posix) {
@@ -3983,7 +4092,6 @@ fn static_fallback_command(tool: &str) -> String {
 ///   防火墙拦截时仍能装上,降级到裸 `npm i -g`（或 brew tap）。官方脚本本身不用 pipe,
 ///   所以这条路径在 WSL 的 `sh -c` 子 shell 中也不依赖外层 `pipefail`。
 /// - Windows 原生一般不启用 bash installer（claude 除外，现已支持 install.ps1 + npm 国内镜像兜底），
-
 fn posix_install_command_for(tool: &str) -> String {
     match tool {
         "claude" => {
@@ -4016,7 +4124,11 @@ fn posix_install_command_for(tool: &str) -> String {
             // macOS/Linux 优先 Homebrew；不可用时回退 npm（Windows 使用国内镜像）。
             let brew_primary = "brew install codex";
             let npm_fallback = codex_direct_npm_command();
-            chain_update_commands(brew_primary.to_string(), npm_fallback, LifecycleCommandShell::Posix)
+            chain_update_commands(
+                brew_primary.to_string(),
+                npm_fallback,
+                LifecycleCommandShell::Posix,
+            )
         }
         _ => static_fallback_command_for(tool, ToolLifecycleAction::Install),
     }
@@ -5461,7 +5573,10 @@ mod tests {
         fn opencode_windows_static_fallback_skips_official_upgrade() {
             let cmd = static_fallback_command("opencode");
             // Windows 使用国内镜像 npm 兜底（与 claude/codex 一致）
-            assert_eq!(cmd, "npm i -g opencode-ai@latest --registry=https://registry.npmmirror.com");
+            assert_eq!(
+                cmd,
+                "npm i -g opencode-ai@latest --registry=https://registry.npmmirror.com"
+            );
             assert!(!cmd.contains("opencode upgrade"));
         }
 
@@ -5940,7 +6055,10 @@ mod tests {
                 "/opt/homebrew/bin/codex",
                 "/opt/homebrew/Cellar/codex/1.2.3/bin/codex",
             );
-            assert_eq!(cmd.as_deref(), Some("/opt/homebrew/bin/brew update && /opt/homebrew/bin/brew upgrade codex"));
+            assert_eq!(
+                cmd.as_deref(),
+                Some("/opt/homebrew/bin/brew update && /opt/homebrew/bin/brew upgrade codex")
+            );
         }
 
         #[test]
@@ -6155,7 +6273,9 @@ mod tests {
             );
             assert_eq!(
                 cmd.as_deref(),
-                Some("'/opt/my brew/bin/brew' update && '/opt/my brew/bin/brew' upgrade gemini-cli")
+                Some(
+                    "'/opt/my brew/bin/brew' update && '/opt/my brew/bin/brew' upgrade gemini-cli"
+                )
             );
         }
 
@@ -6367,7 +6487,11 @@ mod tests {
                 "should include brew as mac secondary priority: {cmd}"
             );
             let parts: Vec<&str> = cmd.split("||").collect();
-            assert_eq!(parts.len(), 3, "should be a three-step short-circuit chain (official || brew || npm)");
+            assert_eq!(
+                parts.len(),
+                3,
+                "should be a three-step short-circuit chain (official || brew || npm)"
+            );
             assert!(parts[0].contains("install.sh"), "official first: {cmd}");
             assert!(
                 !parts[0].contains('|'),
@@ -6395,8 +6519,15 @@ mod tests {
                 "should include brew tap as mac secondary priority: {cmd}"
             );
             let parts: Vec<&str> = cmd.split("||").collect();
-            assert_eq!(parts.len(), 3, "should be a three-step short-circuit chain (official || brew || npm)");
-            assert!(parts[0].contains("https://opencode.ai/install"), "official first: {cmd}");
+            assert_eq!(
+                parts.len(),
+                3,
+                "should be a three-step short-circuit chain (official || brew || npm)"
+            );
+            assert!(
+                parts[0].contains("https://opencode.ai/install"),
+                "official first: {cmd}"
+            );
             assert!(
                 !parts[0].contains('|'),
                 "official installer should avoid pipe: {cmd}"
@@ -6410,8 +6541,14 @@ mod tests {
             // macOS/Linux 优先 Homebrew，不可用时回落到 npm。
             // 不是裸 npm；包含 brew || 兜底。
             let cmd = install_command_for("codex");
-            assert!(cmd.contains("brew install codex"), "codex mac prefers brew first: {cmd}");
-            assert!(cmd.contains("npm i -g @openai/codex@latest"), "npm fallback present: {cmd}");
+            assert!(
+                cmd.contains("brew install codex"),
+                "codex mac prefers brew first: {cmd}"
+            );
+            assert!(
+                cmd.contains("npm i -g @openai/codex@latest"),
+                "npm fallback present: {cmd}"
+            );
             let parts: Vec<&str> = cmd.split("||").collect();
             assert_eq!(parts.len(), 2, "codex install is two-step (brew || npm)");
         }
@@ -6999,7 +7136,8 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
             "ff459150991612007549270d2d28c5e78cec6bd6ac200a7ada5ed6c031369b87"
         );
         assert_eq!(
-            extract_sha256_from_sums(sums, "OpenAI.Codex_26.715.2305.0_x64__2p2nqsd0c76g0.Msix").unwrap(),
+            extract_sha256_from_sums(sums, "OpenAI.Codex_26.715.2305.0_x64__2p2nqsd0c76g0.Msix")
+                .unwrap(),
             "f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e"
         );
         assert!(extract_sha256_from_sums(sums, "nonexistent.dmg").is_err());
@@ -7018,7 +7156,10 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
         let key = "mac-universal-dmg";
         let plat = fake_manifest["platforms"].get(key).unwrap();
         let filename = plat["filename"].as_str().unwrap();
-        let url = format!("https://software.lumocore.edu.kg/claude-desktop/latest/{}", filename);
+        let url = format!(
+            "https://software.lumocore.edu.kg/claude-desktop/latest/{}",
+            filename
+        );
         assert_eq!(url, "https://software.lumocore.edu.kg/claude-desktop/latest/Claude-1.2.3-mac-universal-dmg.dmg");
     }
 
@@ -7032,7 +7173,10 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
             "version": "1.18.0"
           }
         ]"#;
-        assert_eq!(parse_brew_info_version(formula_json), Some("1.18.0".to_string()));
+        assert_eq!(
+            parse_brew_info_version(formula_json),
+            Some("1.18.0".to_string())
+        );
 
         // cask v2 包装（claude-code）
         let cask_v2_json = r#"{
@@ -7045,7 +7189,10 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
             }
           ]
         }"#;
-        assert_eq!(parse_brew_info_version(cask_v2_json), Some("2.1.205".to_string()));
+        assert_eq!(
+            parse_brew_info_version(cask_v2_json),
+            Some("2.1.205".to_string())
+        );
 
         // 直接 object 兜底
         let direct = r#"{"version": "0.9.9"}"#;
@@ -7053,7 +7200,10 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
 
         // 脏值过滤
         assert_eq!(parse_brew_info_version(r#"[{"version": "latest"}]"#), None);
-        assert_eq!(parse_brew_info_version(r#"{"casks":[{"version":"HEAD"}]}"#), None);
+        assert_eq!(
+            parse_brew_info_version(r#"{"casks":[{"version":"HEAD"}]}"#),
+            None
+        );
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -7062,11 +7212,18 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
         // 在有 brew 安装的机器上验证：opencode 的默认 PATH 指向 Cellar 时，
         // 我们拿到的 latest 必须来自 brew info（与 `brew upgrade` 一致），而非 npm 可能更新的版本。
         let default_path = resolve_path_default("opencode");
-        assert!(default_path.is_some(), "opencode should be discoverable via login shell on this env");
+        assert!(
+            default_path.is_some(),
+            "opencode should be discoverable via login shell on this env"
+        );
 
         let real = default_path.unwrap().to_string_lossy().to_string();
         let formula = brew_formula_from_path(&real);
-        assert_eq!(formula.as_deref(), Some("opencode"), "should extract formula name from Cellar path: {real}");
+        assert_eq!(
+            formula.as_deref(),
+            Some("opencode"),
+            "should extract formula name from Cellar path: {real}"
+        );
 
         // 直接调用与 get_preferred 相同的路径
         let brew_exe = resolve_path_default("brew").map(|p| p.to_string_lossy().into_owned());
@@ -7080,9 +7237,17 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
             .and_then(|o| {
                 if o.status.success() {
                     parse_brew_info_version(&decode_command_output(&o.stdout))
-                } else { None }
+                } else {
+                    None
+                }
             });
-        assert!(truth.is_some(), "brew must report a stable version for opencode");
-        assert_eq!(latest, truth, "our brew latest path must match raw `brew info` output for the installed tool");
+        assert!(
+            truth.is_some(),
+            "brew must report a stable version for opencode"
+        );
+        assert_eq!(
+            latest, truth,
+            "our brew latest path must match raw `brew info` output for the installed tool"
+        );
     }
 }
