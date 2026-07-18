@@ -7203,13 +7203,11 @@ f2715c5358c41f96b0556992ed03968b52d3f438221561cb648f11801a90899e  OpenAI.Codex_2
     fn brew_default_install_prefers_brew_info_over_npm_for_latest() {
         // 在有 brew 安装的机器上验证：opencode 的默认 PATH 指向 Cellar 时，
         // 我们拿到的 latest 必须来自 brew info（与 `brew upgrade` 一致），而非 npm 可能更新的版本。
-        let default_path = resolve_path_default("opencode");
-        assert!(
-            default_path.is_some(),
-            "opencode should be discoverable via login shell on this env"
-        );
+        let Some(default_path) = resolve_path_default("opencode") else {
+            return;
+        };
 
-        let real = default_path.unwrap().to_string_lossy().to_string();
+        let real = default_path.to_string_lossy().to_string();
         let formula = brew_formula_from_path(&real);
         assert_eq!(
             formula.as_deref(),
