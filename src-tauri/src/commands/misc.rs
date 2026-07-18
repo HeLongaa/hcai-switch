@@ -1118,31 +1118,23 @@ fn restart_codex_desktop_linux() -> Result<(), String> {
         "/usr/local/bin/codex-desktop",
         "/opt/Codex.AppImage",
     ];
-    let mut user_cands: Vec<String> = vec![
+    let user_cands: Vec<String> = vec![
         format!("{}/.local/bin/codex", home),
         format!("{}/.local/bin/codex-desktop", home),
         format!("{}/Applications/Codex.AppImage", home),
         format!("{}/bin/codex", home),
     ];
-    let mut all: Vec<&str> = candidates;
-    for s in &user_cands {
-        // 临时转为 &str 无法直接追加，改用 Path 检查
-    }
 
     for bin in candidates {
         let p = Path::new(bin);
-        if p.exists() {
-            if Command::new(p).spawn().is_ok() {
-                return Ok(());
-            }
+        if p.exists() && Command::new(p).spawn().is_ok() {
+            return Ok(());
         }
     }
     for s in &user_cands {
         let p = Path::new(s);
-        if p.exists() {
-            if Command::new(p).spawn().is_ok() {
-                return Ok(());
-            }
+        if p.exists() && Command::new(p).spawn().is_ok() {
+            return Ok(());
         }
     }
 
