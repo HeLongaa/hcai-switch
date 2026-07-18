@@ -147,8 +147,8 @@ describe("useSettingsForm Hook", () => {
       minimizeToTrayOnClose: true,
       enableClaudePluginIntegration: false,
       claudeConfigDir: "/origin",
-      codexConfigDir: null,
-      language: "en",
+      codexConfigDir: undefined,
+      language: "en" as const,
     };
     useSettingsQueryMock.mockReturnValue({
       data: serverData,
