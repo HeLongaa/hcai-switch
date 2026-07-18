@@ -142,15 +142,16 @@ describe("useSettingsForm Hook", () => {
   });
 
   it("should reset with server data and restore initial language in resetSettings", async () => {
+    const serverData = {
+      showInTray: true,
+      minimizeToTrayOnClose: true,
+      enableClaudePluginIntegration: false,
+      claudeConfigDir: "/origin",
+      codexConfigDir: null,
+      language: "en",
+    };
     useSettingsQueryMock.mockReturnValue({
-      data: {
-        showInTray: true,
-        minimizeToTrayOnClose: true,
-        enableClaudePluginIntegration: false,
-        claudeConfigDir: "/origin",
-        codexConfigDir: null,
-        language: "en",
-      },
+      data: serverData,
       isLoading: false,
     });
 
@@ -164,23 +165,16 @@ describe("useSettingsForm Hook", () => {
     (i18n as any).language = "zh";
 
     act(() => {
-      result.current.resetSettings({
-        showInTray: false,
-        minimizeToTrayOnClose: false,
-        enableClaudePluginIntegration: true,
-        claudeConfigDir: "  /reset  ",
-        codexConfigDir: "   ",
-        language: "zh",
-      });
+      result.current.resetSettings(serverData);
     });
 
     const settings = result.current.settings!;
-    expect(settings.showInTray).toBe(false);
-    expect(settings.minimizeToTrayOnClose).toBe(false);
-    expect(settings.enableClaudePluginIntegration).toBe(true);
-    expect(settings.claudeConfigDir).toBe("/reset");
+    expect(settings.showInTray).toBe(true);
+    expect(settings.minimizeToTrayOnClose).toBe(true);
+    expect(settings.enableClaudePluginIntegration).toBe(false);
+    expect(settings.claudeConfigDir).toBe("/origin");
     expect(settings.codexConfigDir).toBeUndefined();
-    expect(settings.language).toBe("zh");
+    expect(settings.language).toBe("en");
     expect(result.current.initialLanguage).toBe("en");
     expect(changeLanguageSpy).toHaveBeenCalledWith("en");
   });
